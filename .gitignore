@@ -1,0 +1,14 @@
+.venv/
+.ha-venv/
+.runtime/
+.upstream/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+firmware/.esphome/
+firmware/secrets.yaml
+firmware/chan.local.yaml
+.storage/
+*.log
+dist/

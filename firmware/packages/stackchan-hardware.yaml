@@ -1,0 +1,211 @@
+# SPDX-License-Identifier: MIT
+# Adapted from m5stack/esphome-yaml, Copyright (c) 2025 m5stack.
+# Source revision cc708ddcc9dea7cfc746b408d2495ce281bbf2d2.
+# Source: examples/kit/stackchan-bsp.factory.yaml.
+# See ../../LICENSES/m5stack-esphome-yaml-MIT.txt and ../../THIRD_PARTY.md.
+# Hardware pins, codecs and power rail values retain upstream definitions.
+# Scope: audio, display, optional screen touch; camera and servos omitted.
+
+esp32:
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_SPIRAM_SUPPORT: y
+      CONFIG_SPIRAM_USE_CAPS_ALLOC: y
+      CONFIG_SPIRAM_USE_MALLOC: y
+  cpu_frequency: 240MHz
+psram:
+  mode: quad
+  speed: 80MHz
+i2s_audio:
+  id: i2s_audio_bus
+  i2s_lrclk_pin: GPIO33
+  i2s_bclk_pin: GPIO34
+  i2s_mclk_pin:
+    number: GPIO0
+    ignore_strapping_warning: true
+i2c:
+- id: bsp_bus
+  sda: GPIO12
+  scl: GPIO11
+  frequency: 100kHz
+  scan: true
+spi:
+- id: spi_bus
+  clk_pin: GPIO36
+  mosi_pin: GPIO37
+axp2101:
+  id: axp2101_pmu
+  i2c_id: bsp_bus
+aw9523b:
+  id: aw9523b_hub
+  i2c_id: bsp_bus
+  p0_drive_mode: PUSH_PULL
+  interrupt_pin: GPIO21
+output:
+- platform: axp2101
+  type: range
+  channel: DLDO1
+  id: lcd_backlight_output
+  min_voltage: 2600
+  max_voltage: 3300
+- platform: axp2101
+  channel: ALDO1
+  voltage: 1800
+- platform: axp2101
+  channel: ALDO2
+  voltage: 3300
+- platform: axp2101
+  channel: ALDO3
+  voltage: 3300
+- platform: axp2101
+  channel: ALDO4
+  voltage: 3300
+- platform: axp2101
+  channel: BLDO1
+  voltage: 2800
+- platform: axp2101
+  channel: BLDO2
+  voltage: 1500
+- platform: axp2101
+  channel: DCDC1
+  voltage: 3300
+- platform: axp2101
+  channel: DCDC4
+  voltage: 1800
+- platform: axp2101
+  channel: DCDC3
+  voltage: 3300
+- platform: axp2101
+  channel: DCDC5
+  voltage: 3300
+audio_adc:
+- platform: es7210
+  id: es7210_adc
+  i2c_id: bsp_bus
+  bits_per_sample: 16bit
+  sample_rate: 16000
+  mic_gain: 36
+audio_dac:
+- platform: aw88298
+  id: aw88298_dac
+  i2c_id: bsp_bus
+  sample_rate: 48000
+microphone:
+- platform: i2s_audio
+  id: i2s_mic
+  i2s_din_pin: GPIO14
+  adc_type: external
+  sample_rate: 16000
+  bits_per_sample: 16bit
+  i2s_audio_id: i2s_audio_bus
+speaker:
+- platform: i2s_audio
+  i2s_audio_id: i2s_audio_bus
+  id: i2s_speaker
+  dac_type: external
+  i2s_dout_pin: GPIO13
+  audio_dac: aw88298_dac
+media_player:
+- platform: speaker
+  name: Chan Audio
+  id: va_media_player
+  volume_min: 0.0
+  volume_max: 0.5
+  announcement_pipeline:
+    speaker: i2s_speaker
+    format: FLAC
+    sample_rate: 48000
+    num_channels: 1
+external_components:
+- source:
+    type: git
+    url: https://github.com/m5stack/esphome-yaml
+    ref: cc708ddcc9dea7cfc746b408d2495ce281bbf2d2
+    path: components
+  components:
+  - axp2101
+  - aw88298
+  - aw9523b
+  refresh: never
+switch:
+- platform: gpio
+  pin:
+    aw9523b_id: aw9523b_hub
+    number: 1
+  restore_mode: RESTORE_DEFAULT_ON
+  id: bsp_power_0
+  internal: true
+- platform: gpio
+  pin:
+    aw9523b_id: aw9523b_hub
+    number: 5
+  restore_mode: RESTORE_DEFAULT_OFF
+  id: bsp_power_1
+  internal: true
+- platform: gpio
+  pin:
+    aw9523b_id: aw9523b_hub
+    number: 15
+  restore_mode: RESTORE_DEFAULT_ON
+  id: bsp_power_2
+  internal: true
+- platform: gpio
+  id: aw_rst
+  pin:
+    aw9523b_id: aw9523b_hub
+    number: 2
+  internal: true
+  restore_mode: RESTORE_DEFAULT_ON
+- platform: gpio
+  id: cam_rst
+  pin:
+    aw9523b_id: aw9523b_hub
+    number: 8
+  internal: true
+  restore_mode: RESTORE_DEFAULT_ON
+light:
+- platform: monochromatic
+  id: lcd_backlight
+  icon: mdi:television
+  output: lcd_backlight_output
+  restore_mode: ALWAYS_OFF
+  default_transition_length: 250ms
+  internal: true
+display:
+- platform: mipi_spi
+  model: M5CORE
+  dc_pin: GPIO35
+  reset_pin:
+    aw9523b_id: aw9523b_hub
+    number: 9
+  cs_pin:
+    number: GPIO3
+    ignore_strapping_warning: true
+  data_rate: 40MHz
+  invert_colors: true
+  id: m5cores3_lcd
+  show_test_card: false
+  update_interval: 100ms
+  lambda: chan::draw_face(it, id(chan_active).state, id(chan_expression).current_option(),
+    id(chan_phase).state, millis());
+touchscreen:
+- platform: ft63x6
+  id: touch
+  i2c_id: bsp_bus
+  reset_pin:
+    aw9523b_id: aw9523b_hub
+    number: 0
+  calibration:
+    x_min: 0
+    x_max: 320
+    y_min: 0
+    y_max: 240
+  on_touch:
+  - if:
+      condition:
+        switch.is_on: chan_touch_activation
+      then:
+      - switch.toggle: chan_active

@@ -1,0 +1,10 @@
+--- a/custom_components/gemini_live/stt.py
++++ b/custom_components/gemini_live/stt.py
+@@ -286,4 +286,7 @@
+ def _validate_tool_results(value: Any) -> Any:
+     """Recursively convert non-json-serializable tool results."""
++    if isinstance(value, llm.ToolResult):
++        data = _validate_tool_results(value.data)
++        return {"error": data} if value.error else data
+     if isinstance(value, (datetime.time, datetime.date)):
+         return value.isoformat()
