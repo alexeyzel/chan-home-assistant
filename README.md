@@ -168,7 +168,8 @@ integration and is not bundled here. We inspected v1.0.9 at commit
 2. Build a dedicated Assist pipeline using the matching live **STT, conversation,
    and TTS** entities from the same entry. Assign it to the robot.
 3. In its **LLM APIs** options, keep **Assist** for permitted home actions and
-   also enable **Chan expressions**. Keep home entity exposure minimal.
+   also enable **Chan expressions**. Keep home entity exposure minimal and leave
+   the robot's activation and raw firmware controls unexposed to Assist.
 4. Set the voice agent's system instruction to Ukrainian conversation, for example:
 
    ```text
@@ -183,7 +184,9 @@ integration and is not bundled here. We inspected v1.0.9 at commit
 Chan grants the tool only when the requesting HA device ID matches the configured
 robot and the firmware reports an active listening/thinking/speaking state.
 Testing from a browser with no matching device ID intentionally exposes no Chan
-expression tool. No model tool can activate the robot or move its servos.
+expression tool. The Chan expression API cannot activate the robot or move its
+servos. Generic Assist tools can control entities you explicitly expose, so keep
+robot activation out of that exposed set.
 
 Expression calls have a 15-second lease and are invalidated on a new listening
 turn, sleep, or observed disconnection. They are not synchronized to individual
