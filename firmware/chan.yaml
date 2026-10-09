@@ -1,12 +1,12 @@
 # Chan v0.1: audio/display test on the official stock StackChan.
-# No wake word, camera, servo commands or automatic activation.
+# Uses the official M5Stack BSP with a small Chan behavior overlay.
 substitutions:
   name: chan
   friendly_name: Chan
   build_path: build/chan
 
 packages:
-  hardware: !include packages/stackchan-hardware.yaml
+  hardware: !include packages/official-stackchan.yaml
   face: !include packages/face.yaml
 
 esphome:
@@ -16,7 +16,7 @@ esphome:
   build_path: ${build_path}
   project:
     name: alexeyzel.chan-home-assistant
-    version: 0.1.1
+    version: 0.1.2
   on_boot:
     priority: -100
     then:
@@ -28,12 +28,36 @@ logger:
 api:
 
 ota:
-  - platform: esphome
+  - id: !extend ota_esphome
     encryption:
 
 wifi:
   on_disconnect:
     - switch.turn_off: chan_active
+
+# These upstream demo features are outside the initial Chan audio test.
+# Their hardware definitions remain in the official BSP, not duplicated here.
+esp32_camera: !remove
+remote_transmitter: !remove
+remote_receiver: !remove
+climate: !remove
+infrared: !remove
+button: !remove
+
+light:
+  - id: !extend lcd_backlight
+    restore_mode: ALWAYS_OFF
+  - id: !extend stackchan_light_bar
+    restore_mode: ALWAYS_OFF
+
+touchscreen:
+  - id: !extend touch
+    on_touch:
+      - if:
+          condition:
+            switch.is_on: chan_touch_activation
+          then:
+            - switch.toggle: chan_active
 
 switch:
   - platform: template
