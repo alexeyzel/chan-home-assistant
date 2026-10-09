@@ -1,0 +1,193 @@
+# Chan v0.1: audio/display test on the official stock StackChan.
+# No wake word, camera, servo commands or automatic activation.
+substitutions:
+  name: chan
+  friendly_name: Chan
+  build_path: build/chan
+
+packages:
+  hardware: !include packages/stackchan-hardware.yaml
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  min_version: 2026.9.1
+  build_path: ${build_path}
+  includes:
+    - face.h
+  project:
+    name: alexeyzel.chan-home-assistant
+    version: 0.1.0
+  on_boot:
+    priority: -100
+    then:
+      - switch.turn_off: chan_active
+
+logger:
+  level: INFO
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    encryption:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  on_disconnect:
+    - switch.turn_off: chan_active
+
+switch:
+  - platform: template
+    id: chan_active
+    name: Chan Active
+    optimistic: false
+    # on_boot initializes this after audio/display components have set up.
+    restore_mode: DISABLED
+    turn_on_action:
+      - if:
+          condition:
+            voice_assistant.connected:
+          then:
+            - switch.template.publish:
+                id: chan_active
+                state: ON
+            - select.set:
+                id: chan_expression
+                option: neutral
+            - text_sensor.template.publish:
+                id: chan_phase
+                state: idle
+            - light.turn_on:
+                id: lcd_backlight
+                brightness: 60%
+            - voice_assistant.start_continuous:
+          else:
+            - switch.turn_off: chan_active
+    turn_off_action:
+      - switch.template.publish:
+          id: chan_active
+          state: OFF
+      - voice_assistant.stop:
+      - lambda: id(va).reset_conversation_id();
+      - media_player.stop: va_media_player
+      - speaker.stop: i2s_speaker
+      - script.stop: chan_expression_timeout
+      - select.set:
+          id: chan_expression
+          option: neutral
+      - text_sensor.template.publish:
+          id: chan_phase
+          state: sleep
+      - light.turn_off: lcd_backlight
+  - platform: template
+    id: chan_touch_activation
+    name: Chan Touch Activation
+    entity_category: config
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+
+select:
+  - platform: template
+    id: chan_expression
+    name: Chan Expression
+    optimistic: true
+    restore_value: false
+    initial_option: neutral
+    options:
+      - neutral
+      - warm
+      - happy
+      - sad
+      - surprised
+      - focused
+    on_value:
+      - if:
+          condition:
+            lambda: return x != "neutral";
+          then:
+            - script.execute: chan_expression_timeout
+
+text_sensor:
+  - platform: template
+    id: chan_phase
+    name: Chan Phase
+    update_interval: never
+
+script:
+  - id: chan_expression_timeout
+    mode: restart
+    then:
+      - delay: 8s
+      - select.set:
+          id: chan_expression
+          option: neutral
+
+media_player:
+  - id: !extend va_media_player
+    on_announcement:
+      - if:
+          condition:
+            switch.is_on: chan_active
+          then:
+            - text_sensor.template.publish:
+                id: chan_phase
+                state: speaking
+    on_idle:
+      - if:
+          condition:
+            switch.is_on: chan_active
+          then:
+            - select.set:
+                id: chan_expression
+                option: neutral
+            - text_sensor.template.publish:
+                id: chan_phase
+                state: idle
+
+voice_assistant:
+  id: va
+  microphone: i2s_mic
+  media_player: va_media_player
+  use_wake_word: false
+  noise_suppression_level: 2
+  auto_gain: 31dBFS
+  volume_multiplier: 1.0
+  on_listening:
+    - if:
+        condition:
+          switch.is_on: chan_active
+        then:
+          - script.stop: chan_expression_timeout
+          - select.set:
+              id: chan_expression
+              option: neutral
+          - text_sensor.template.publish:
+              id: chan_phase
+              state: listening
+  on_stt_vad_end:
+    - if:
+        condition:
+          switch.is_on: chan_active
+        then:
+          - text_sensor.template.publish:
+              id: chan_phase
+              state: thinking
+  on_end:
+    - if:
+        condition:
+          and:
+            - switch.is_on: chan_active
+            - not:
+                media_player.is_announcing: va_media_player
+        then:
+          - text_sensor.template.publish:
+              id: chan_phase
+              state: idle
+  on_error:
+    - switch.turn_off: chan_active
+  on_client_disconnected:
+    - switch.turn_off: chan_active
