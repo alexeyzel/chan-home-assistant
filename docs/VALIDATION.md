@@ -1,68 +1,48 @@
-# Validation record and first-device checklist
+# Device validation
 
-## Software baseline
+## 2026-10-09: official M5Stack BSP
 
-Prepared on 2026-10-08 for version 0.1.0:
+Hardware: official-store StackChan AI Desktop Robot; exact assembly revision
+not independently confirmed.
 
-| Component | Version/reference |
-| --- | --- |
-| Home Assistant Core | 2026.10.0 |
-| HA test Python | 3.14.2 |
-| ESPHome | 2026.9.1 |
-| ESPHome build Python | 3.12.10 |
-| ESP-IDF | 5.5.5 |
-| M5Stack ESPHome drivers | cc708ddcc9dea7cfc746b408d2495ce281bbf2d2 |
-| Gemini Live integration inspected | matt123p/ha-gemini-live 1.0.9, d4ad0e523eca92f1c395e82da14d6da0fafd71be |
+- ESPHome: 2026.9.1.
+- Upstream project label: m5stack.stackchan-bsp 2026.3.0.
+- BSP/drivers: upstream main; exact build commit unknown.
+- HA version and Pipecat Assist add-on version: not supplied.
 
-ESPHome configuration validation and a full ESP32-S3 compile succeeded. The
-original Windows build path with spaces failed during ESP-IDF linker-script
-generation; rebuilding in a path without spaces succeeded. The compile used
-public example secrets, not deployment credentials. That binary is not a
-ready-to-flash personal deployment and is not published.
+Evidence: owner-provided logs and owner confirmation. Raw logs are not committed.
 
-All Chan modules import on the pinned HA release. All 22 automated tests passed.
-The tests use actual HA
-classes with simulated firmware entities; they do not prove audio, display,
-touchscreen, provider interoperability, or physical behavior on a robot.
+## Confirmed observations
 
-A local SDK check reproduced a ToolResult serialization failure in the inspected
-Gemini Live integration. The supplied compatibility patch passed success/error/
-nested result conversion and Google GenAI 2.21.0 FunctionResponse validation
-without cloud calls. See [the patch instructions](GEMINI_LIVE.md).
+- setup() completed; power and IO expanders initialized.
+- 8 MB PSRAM available; Wi-Fi connected.
+- Camera produced a frame, without establishing sustained streaming quality.
+- Screen touch coordinates appeared after an initial driver-start error.
+- Both servos reported positions; an initial ping warning subsequently cleared.
+- HA TTS FLAC decoded as mono 48 kHz / 16-bit PCM. Playback started and stopped
+  without an error in the supplied excerpt.
+- Owner heard speech. Increasing HA volume made it acceptable, though not ideal.
 
-## Hardware checks (not yet performed)
+## Open issues
 
-Record results and actual versions locally. Do not upload credentials, face
-images, transcripts, or private HA configuration with test reports.
+- Y servo reported 190 degrees outside its configured 0..90 range. Resolve
+  calibration/position conversion before commanding motion.
+- FT6336U startup error followed by working touch events: repeat cold boots.
+- AW88298 reported Initialized: NO despite setup completion and audible playback.
+  Inspected upstream setup did not set the flag; this alone is not audio failure.
+- Initial log covered about 21 seconds, not a long stability test.
+- Microphone capture, head-touch transitions, and concurrent load remain unverified.
+- Pipecat YAML was proposed in chat, but compilation and device operation have
+  not been confirmed. It is not a tested release.
 
-1. Confirm the SKU, controller revision, and official firmware recovery route.
-2. Boot with screen dark, no voice capture session, and no head movement.
-3. Add ESPHome to HA, configure an Assist pipeline, then add the Chan integration.
-4. Activate from HA. Confirm the face appears and microphone audio reaches Assist.
-5. Ask a short Ukrainian question. Measure time from end of speech to first
-   audible response and confirm intelligible playback.
-6. Check state feedback against actual listening, processing, and playback.
-7. Test each expression manually and verify the eight-second reset.
-8. Enable optional touch activation and test activation and stop by screen tap.
-9. Stop from HA during playback; measure residual audio and verify the screen
-   remains dark even if late provider/pipeline events arrive.
-10. Disconnect HA and Wi-Fi separately. Confirm safe inactivity and no automatic
-    reactivation after reconnection. Reboot and confirm the same default.
-11. Reactivate and verify conversation context was reset. Within one activation,
-    verify follow-up context across turns.
-12. Test Gemini Live with a dedicated pipeline and both Assist and Chan LLM APIs.
-    Inspect expression tool calls, device-ID propagation, and timing.
-13. Start a new turn or stop during a delayed expression tool call; verify no
-    stale reaction appears in the next interaction.
+## Next acceptance test
 
-## Explicitly unverified requirements
+1. Record Pipecat add-on version and exact dependency commits.
+2. Validate and compile the proposed Pipecat configuration.
+3. Confirm authenticated connection, microphone transcript, and audible reply.
+4. Repeat conversation turns and explicit start/stop cycles.
+5. Verify stop clears audio and microphone streaming; test reconnection.
+6. Evaluate echo and interruption separately after basic conversation works.
 
-- Ukrainian live conversation quality and latency on the physical robot.
-- Streaming playback compatibility with the selected Gemini Live integration.
-- Reliable voice interruption, acoustic echo cancellation, and full duplex.
-- Camera transport into Frigate and fresh tracking coordinates.
-- Simultaneous audio/video/display/servo operation and movement calibration.
-- Reliable current-speaker association, profile injection, and isolated memory.
-
-These require later hardware milestones. No guard behavior, tracking, motion,
-or personal memory is claimed by this release.
+Before a new release, record results, pin sources, and document recovery and
+limitations. No new release was created by this cleanup.

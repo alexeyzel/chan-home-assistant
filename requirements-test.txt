@@ -1,8 +1,0 @@
-# HA 2026.10 requires Python >=3.14.2. Use a separate environment from ESPHome.
-homeassistant==2026.10.0
-pytest==9.1.1
-pytest-asyncio==1.4.0
-# Optional HA Conversation dependencies used by APIInstance.async_call_tool.
-gazetteer-matcher==1.1.0
-hassil==3.12.1
-home-assistant-intents==2026.10.6
