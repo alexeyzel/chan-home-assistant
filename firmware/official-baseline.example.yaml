@@ -1,0 +1,21 @@
+# Standalone official M5Stack hardware baseline. No Chan behavior/voice overlay.
+# Paste into ESPHome Device Builder to isolate boot/hardware problems first.
+substitutions:
+  name: chan
+  friendly_name: Chan
+
+packages:
+  m5stack_stackchan:
+    url: https://github.com/m5stack/esphome-yaml
+    ref: cc708ddcc9dea7cfc746b408d2495ce281bbf2d2
+    files:
+      - examples/kit/stackchan-bsp.factory.yaml
+    refresh: never
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  encryption:
+    key: !secret chan_api_key

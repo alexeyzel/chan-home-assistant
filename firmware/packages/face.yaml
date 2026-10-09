@@ -3,6 +3,8 @@
 # No external header, artwork or font files are required.
 display:
   - id: !extend m5cores3_lcd
+    show_test_card: false
+    update_interval: 100ms
     lambda: |-
       const bool active = id(chan_active).state;
       const auto expression = id(chan_expression).current_option();

@@ -4,7 +4,7 @@ ESPHome firmware and a Home Assistant integration for the official stock M5Stack
 StackChan with a CoreS3-based controller. Chan stays quiet until activated, then
 shows a face and starts an Assist conversation in Ukrainian.
 
-**v0.1.1 is the first audio/display test.** Head movement, camera/Frigate tracking,
+**v0.1.2 is the first audio/display test.** Head movement, camera/Frigate tracking,
 per-person memory, and full-duplex voice interruption are later milestones.
 
 ## Installation: ESPHome Device Builder + HACS
@@ -37,7 +37,7 @@ substitutions:
   friendly_name: Chan
 
 packages:
-  chan: github://alexeyzel/chan-home-assistant/firmware/chan.yaml@v0.1.1
+  chan: github://alexeyzel/chan-home-assistant/firmware/chan.yaml@v0.1.2
 
 wifi:
   ssid: !secret wifi_ssid
@@ -49,8 +49,9 @@ api:
 ```
 
 4. Select **Save**, then **Validate**. ESPHome fetches the package, its included
-   YAML files, and the pinned M5Stack drivers automatically. The face renderer
-   is embedded in YAML and requires no local C++ header or image files.
+   YAML files, and the pinned M5Stack drivers automatically. The hardware package directly imports M5Stack's official StackChan BSP at a
+   recorded Git revision. Chan adds behavior/display/Assist settings; it does not
+   redefine GPIOs, codecs or power rails. No local C++ headers or images are needed.
 5. Connect the robot with a USB data cable and select **Install**. If it is
    connected to the HA/ESPHome host, choose the host's USB/serial installation
    option. If connected to your computer, choose the browser USB installation
@@ -65,7 +66,7 @@ Before replacing factory firmware, identify the official recovery procedure for
 [M5Burner](https://docs.m5stack.com/en/uiflow/m5burner/intro). Do not change GPIOs,
 power rails or wiring assumptions to troubleshoot flashing.
 
-The package is pinned to `v0.1.1` for reproducibility. To update firmware, change
+The package is pinned to `v0.1.2` for reproducibility. To update firmware, change
 that version in your node YAML to a tested release and use **Install** again.
 HACS updates the HA integration separately; it does not flash the robot.
 
@@ -98,6 +99,25 @@ Chan creates a Conversation switch, Expression select, and Voice state sensor.
 Entity labels have Ukrainian translations. Bindings use registry IDs and survive
 entity renames. Recreating the ESPHome device/entities requires re-adding Chan.
 
+## First establish the official hardware baseline
+
+After a boot failure, use [firmware/official-baseline.example.yaml](firmware/official-baseline.example.yaml)
+in ESPHome Device Builder before testing the Chan overlay. It references M5Stack's
+[official StackChan BSP](https://github.com/m5stack/esphome-yaml/blob/cc708ddcc9dea7cfc746b408d2495ce281bbf2d2/examples/kit/stackchan-bsp.factory.yaml)
+with only local Wi-Fi/API settings. No Chan face, voice assistant, or flash-frequency
+overrides are added. Use the same local secrets as your Chan node and flash over USB.
+
+The official display test card and successful ESPHome/Wi-Fi startup are the baseline
+checks. Do not exercise servo angle/calibration controls during this boot test.
+This configuration initializes the official camera/sensors/servo interfaces; it is
+an explicit hardware diagnostic, not the quiet Conversation/Sleep behavior.
+The Chan HA integration's three endpoints are absent from this standalone BSP.
+
+A bootloader error such as `Failed to verify partition table` occurs before ESPHome
+initializes hardware components. Changing to the official BSP does not by itself
+prove a fix. Compare the baseline boot log with the Chan log first; flash-frequency
+changes remain separate, explicitly labelled diagnostic experiments.
+
 ## First device test
 
 1. Confirm a dark screen, Conversation off, and no head movement after boot.
@@ -114,7 +134,10 @@ entity renames. Recreating the ESPHome device/entities requires re-adding Chan.
    toggle Conversation. Touch activation defaults off again after a reboot.
 
 There is no inactivity timeout in this test; end the interaction explicitly.
-There is no wake word, camera, servo driver, or motion command. The Assist loop
+There is no wake word, active camera transport or custom motion command.
+The official BSP retains servo drivers, feedback sensors and native servo
+controls; leave those controls unexposed to Assist and unused during the first
+boot/audio test. Chan does not yet coordinate or validate manual servo motion. The Assist loop
 listens again **after** playback; it is not full duplex. Stopping an interaction
 requests audio stop and resets the ESPHome conversation ID. Provider errors end
 an interaction and require explicit reactivation.

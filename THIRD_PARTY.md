@@ -13,17 +13,23 @@ retain their own licenses and ownership. No complete robot platform is imported.
 - License: [MIT](https://github.com/m5stack/esphome-yaml/blob/cc708ddcc9dea7cfc746b408d2495ce281bbf2d2/LICENSE), Copyright (c) 2025 m5stack.
 - Preserved notice: [LICENSES/m5stack-esphome-yaml-MIT.txt](LICENSES/m5stack-esphome-yaml-MIT.txt).
 
-`firmware/packages/stackchan-hardware.yaml` is a reduced adaptation of the official
-example. It retains the hardware pins, power rail values, codecs, and display
-definitions. Chan adds its own face renderer and optional touch handler, disables
-the backlight at boot, changes media-player volume limits, and omits camera,
-servo, IR, body lighting, and unrelated sensor features for the audio-first test.
+`firmware/packages/official-stackchan.yaml` imports the official BSP directly.
+No local hardware-definition copy is maintained. GPIOs, power rails, codecs,
+servo calibration formulas and sensor definitions come from that package.
+The later external-component source pins all seven M5Stack drivers to the same
+revision, taking precedence over upstream's moving-main source in ESPHome.
 
-The `axp2101`, `aw88298`, and `aw9523b` external components are fetched from that
-same pinned revision by ESPHome, not copied into this repository. Preserve the
-M5Stack MIT notice when distributing these components or compiled firmware.
-The CoreS3 satellite example was consulted for voice configuration; its assets,
-fonts, wake-word models, sounds, and complete package are not included.
+`firmware/chan.yaml` adds activation, voice-state handling and Assist. Its explicit
+behavior overlays replace the display test card with the original Chan face,
+set screen/body lights off by default, and omit the factory camera/IR/AC demo and
+calibration buttons from the initial Chan interaction. It does not change hardware
+pin assignments. Official servo drivers and feedback/native controls remain;
+custom tracking and motion are not implemented. The standalone
+`firmware/official-baseline.example.yaml` imports the factory BSP without those
+Chan overlays for comparison during hardware diagnosis.
+
+M5Stack drivers are fetched by ESPHome, not copied into this repository. Preserve
+the M5Stack MIT notice when distributing components or compiled firmware.
 
 ## Runtime/build dependencies
 

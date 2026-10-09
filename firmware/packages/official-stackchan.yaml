@@ -1,0 +1,21 @@
+# Official M5Stack StackChan BSP is the hardware source of truth.
+# No local GPIO, codec, power rail, camera or servo definitions.
+# See THIRD_PARTY.md for source revision and license attribution.
+packages:
+  m5stack_stackchan:
+    url: https://github.com/m5stack/esphome-yaml
+    ref: cc708ddcc9dea7cfc746b408d2495ce281bbf2d2
+    files:
+      - examples/kit/stackchan-bsp.factory.yaml
+    refresh: never
+
+# The later source takes precedence over upstream's moving-main source.
+# Pin the drivers to the same revision as the BSP.
+external_components:
+  - source:
+      type: git
+      url: https://github.com/m5stack/esphome-yaml
+      ref: cc708ddcc9dea7cfc746b408d2495ce281bbf2d2
+      path: components
+    components: [axp2101, aw88298, aw9523b, si12t, m5ioe1, ftservo, scs9009]
+    refresh: never
