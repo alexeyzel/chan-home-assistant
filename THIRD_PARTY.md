@@ -67,5 +67,5 @@ its own terms, not an open-source component licensed by this repository.
   and [official ESPHome device guide](https://docs.m5stack.com/en/homeassistant/devices/stackchan):
   hardware references; diagrams and product images are not redistributed.
 
-The geometric face in `firmware/face.h` is original project code. No third-party
+The geometric face in `firmware/packages/face.yaml` is original project code. No third-party
 artwork, character sprites, audio files, icons, or fonts are bundled.

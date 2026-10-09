@@ -15,9 +15,13 @@ unwraps successful results into `data` and preserves failed results as an
 `error` dictionary. The existing recursive conversion still handles nested
 results and dates. Both native audio and typed conversation paths use this helper.
 
-## Install the inspected revision with the patch
+## Developer reproduction only
 
-On a development computer, alongside your Chan checkout:
+This is not the user installation path. Install Chan through HACS and use a
+working Assist pipeline. A compatible live backend delivered through HACS is
+still needed; do not manually patch HA files as part of normal installation.
+
+To reproduce the known compatibility fix on a development computer:
 
 ```sh
 git clone https://github.com/matt123p/ha-gemini-live.git
@@ -25,11 +29,9 @@ git -C ha-gemini-live checkout d4ad0e523eca92f1c395e82da14d6da0fafd71be
 git -C ha-gemini-live apply ../chan-home-assistant/patches/ha-gemini-live-tool-results.patch
 ```
 
-Copy the patched `ha-gemini-live/custom_components/gemini_live` directory to
-`<HA config>/custom_components/gemini_live`, preserving its license and notices,
-then restart HA. Continue with the upstream configuration instructions and the
-Chan README. HACS updates can overwrite a manual patch; check whether the new
-release includes the fix before updating or reapplying it.
+The checkout is for local compatibility testing. It is not installed into HA
+by these commands. An upstream release must include a compatible serializer
+before recommending it as the normal HACS installation path.
 
 The patch is against the exact revision above. Do not apply it blindly to a
 different release. It changes result serialization only, not audio transport,

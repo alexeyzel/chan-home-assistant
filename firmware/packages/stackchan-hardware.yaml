@@ -189,8 +189,6 @@ display:
   id: m5cores3_lcd
   show_test_card: false
   update_interval: 100ms
-  lambda: chan::draw_face(it, id(chan_active).state, id(chan_expression).current_option(),
-    id(chan_phase).state, millis());
 touchscreen:
 - platform: ft63x6
   id: touch

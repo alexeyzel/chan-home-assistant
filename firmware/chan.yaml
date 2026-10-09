@@ -7,17 +7,16 @@ substitutions:
 
 packages:
   hardware: !include packages/stackchan-hardware.yaml
+  face: !include packages/face.yaml
 
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
   min_version: 2026.9.1
   build_path: ${build_path}
-  includes:
-    - face.h
   project:
     name: alexeyzel.chan-home-assistant
-    version: 0.1.0
+    version: 0.1.1
   on_boot:
     priority: -100
     then:
@@ -27,16 +26,12 @@ logger:
   level: INFO
 
 api:
-  encryption:
-    key: !secret api_encryption_key
 
 ota:
   - platform: esphome
     encryption:
 
 wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
   on_disconnect:
     - switch.turn_off: chan_active
 
