@@ -1,0 +1,16 @@
+# Paste this node configuration into ESPHome Device Builder.
+# Credentials stay in your local ESPHome secrets, not the remote package.
+substitutions:
+  name: chan
+  friendly_name: Chan
+
+packages:
+  chan: github://alexeyzel/chan-home-assistant/firmware/chan.yaml@v0.1.1
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  encryption:
+    key: !secret chan_api_key

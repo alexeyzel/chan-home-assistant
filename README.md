@@ -1,219 +1,191 @@
 # Chan for Home Assistant
 
-An experimental ESPHome firmware and Home Assistant integration for the official
-M5Stack StackChan with a CoreS3-based controller. Chan stays quiet until activated,
-then shows a face and starts an Assist conversation in Ukrainian.
+ESPHome firmware and a Home Assistant integration for the official stock M5Stack
+StackChan with a CoreS3-based controller. Chan stays quiet until activated, then
+shows a face and starts an Assist conversation in Ukrainian.
 
-**v0.1.0 is the first audio/display test, not the complete robot experience.**
-It establishes the firmware → Chan integration → Assist path before adding
-camera streaming, head motion, Frigate tracking, and personal memory.
+**v0.1.1 is the first audio/display test.** Head movement, camera/Frigate tracking,
+per-person memory, and full-duplex voice interruption are later milestones.
 
-## Architecture
+## Installation: ESPHome Device Builder + HACS
+
+You do not need to clone this repository, install Python, or copy integration,
+firmware, header, or artwork files. ESPHome downloads the firmware package;
+HACS installs the Chan integration.
+
+Requirements:
+
+- The official stock StackChan; verify its hardware revision before flashing.
+- Home Assistant **2026.10.0** as the tested integration baseline.
+- ESPHome Device Builder **2026.9.1** as the tested build baseline.
+- [HACS](https://www.hacs.dev/docs/use/), already installed in Home Assistant.
+- A working Assist pipeline for the first voice test.
+
+### 1. Add the firmware package in ESPHome
+
+1. Open **ESPHome Device Builder** in HA and create a device named `chan`.
+   Keep the API encryption key generated in its initial configuration. The wizard
+   configuration will be replaced by the node configuration below.
+2. Open ESPHome's **Secrets** editor. Keep your `wifi_ssid` and `wifi_password`
+   entries and add `chan_api_key` containing that generated key. Use a unique key
+   for your robot; do not use the public development example key.
+3. Open the device's **Edit** action and replace its YAML with:
+
+```yaml
+substitutions:
+  name: chan
+  friendly_name: Chan
+
+packages:
+  chan: github://alexeyzel/chan-home-assistant/firmware/chan.yaml@v0.1.1
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  encryption:
+    key: !secret chan_api_key
+```
+
+4. Select **Save**, then **Validate**. ESPHome fetches the package, its included
+   YAML files, and the pinned M5Stack drivers automatically. The face renderer
+   is embedded in YAML and requires no local C++ header or image files.
+5. Connect the robot with a USB data cable and select **Install**. If it is
+   connected to the HA/ESPHome host, choose the host's USB/serial installation
+   option. If connected to your computer, choose the browser USB installation
+   option when available. Browser flashing requires supported Web Serial access;
+   ESPHome's download-and-flash option is the fallback, not a Python/CLI install.
+6. After flashing, the robot should connect to Wi-Fi with its screen dark and
+   conversation off. Subsequent firmware updates can be installed wirelessly
+   through ESPHome using the configured encryption key.
+
+Before replacing factory firmware, identify the official recovery procedure for
+[your StackChan](https://docs.m5stack.com/en/StackChan) and retain access to
+[M5Burner](https://docs.m5stack.com/en/uiflow/m5burner/intro). Do not change GPIOs,
+power rails or wiring assumptions to troubleshoot flashing.
+
+The package is pinned to `v0.1.1` for reproducibility. To update firmware, change
+that version in your node YAML to a tested release and use **Install** again.
+HACS updates the HA integration separately; it does not flash the robot.
+
+### 2. Install Chan through HACS
+
+1. Open **HACS** → top-right **⋮** → **Custom repositories**.
+2. Enter `https://github.com/alexeyzel/chan-home-assistant`.
+3. Select type **Integration**, then **Add**.
+4. Find **Chan** in HACS and select **Download** for the published release.
+5. Restart Home Assistant when prompted.
+
+This repository contains exactly one HA integration, with HACS metadata. No
+manual transfer into `custom_components` is required. If upgrading an earlier
+manual installation, HACS downloads the same `chan` integration directory; keep
+its existing configuration entry unless the underlying ESPHome device was recreated.
+
+See [HACS custom repository instructions](https://www.hacs.dev/docs/faq/custom_repositories/).
+
+### 3. Connect the robot and configure Chan
+
+1. In **Settings → Devices & services**, add the discovered robot through
+   **ESPHome**. If discovery is unavailable, enter its IP address and your API key.
+2. Assign a working Assist pipeline through the ESPHome device's voice
+   assistant/pipeline selector. Use Ukrainian where the selected providers support it.
+3. Select **Add integration → Chan**.
+4. Choose the native ESPHome entities **Chan Active**, **Chan Expression**, and
+   **Chan Phase**, all belonging to the same robot. Actual entity IDs may vary.
+
+Chan creates a Conversation switch, Expression select, and Voice state sensor.
+Entity labels have Ukrainian translations. Bindings use registry IDs and survive
+entity renames. Recreating the ESPHome device/entities requires re-adding Chan.
+
+## First device test
+
+1. Confirm a dark screen, Conversation off, and no head movement after boot.
+2. Turn Conversation on. A face should appear and the robot should listen.
+3. Ask a short Ukrainian question and verify capture, a spoken answer, state
+   feedback, and the next listening turn. Measure the response delay.
+4. During an active interaction, select `happy` or `warm`. Expressions return to
+   neutral after eight seconds or a subsequent listening/playback event.
+5. Turn Conversation off during a reply. Verify playback stops and the screen
+   remains dark even if late pipeline events arrive.
+6. Disconnect HA and Wi-Fi separately. Verify safe inactivity and no automatic
+   reactivation after reconnection. Activate again explicitly.
+7. Optionally enable native **Chan Touch Activation**, then tap the screen to
+   toggle Conversation. Touch activation defaults off again after a reboot.
+
+There is no inactivity timeout in this test; end the interaction explicitly.
+There is no wake word, camera, servo driver, or motion command. The Assist loop
+listens again **after** playback; it is not full duplex. Stopping an interaction
+requests audio stop and resets the ESPHome conversation ID. Provider errors end
+an interaction and require explicit reactivation.
+
+## Architecture and current capabilities
 
 ```mermaid
 flowchart LR
-    Robot[StackChan / ESPHome] <-->|Native ESPHome entities| Chan[Chan HA integration]
-    Robot <-->|Microphone and response audio| Assist[HA Assist]
-    Assist <--> Voice[Compatible voice integration / Gemini Live]
-    Voice -->|HA LLM API| Chan
+    Robot[StackChan / ESPHome] <-->|Native entities| Chan[Chan HA integration]
+    Robot <-->|Audio| Assist[HA Assist]
+    Assist <--> Voice[Compatible voice integration]
+    Voice -->|Chan LLM API| Chan
     Voice -->|Assist tools| Home[Exposed home controls]
-    Frigate[Frigate: future tracking and recognition] -.-> Chan
+    Frigate[Future Frigate tracking and recognition] -.-> Chan
 ```
 
-The custom integration runs inside Home Assistant. There is no separate Chan
-server, add-on, or web application. Audio uses the existing ESPHome/Assist path;
-Chan coordinates device controls and contributes its own expression tool.
+Chan runs inside HA; no separate server, add-on, or web interface is introduced.
+Audio uses ESPHome/Assist. Chan coordinates activation and expression tools.
 
-## What this version provides
-
-| Feature | v0.1 status |
+| Feature | Status |
 | --- | --- |
-| ESPHome audio, display and touchscreen configuration | Implemented from M5Stack definitions; device test required |
-| Explicit activation and stop from HA | Implemented |
-| Optional screen-touch activation | Implemented; disabled at every boot until enabled in HA |
-| Sleep screen and no active microphone conversation | Implemented; no wake word configured |
-| Six original geometric facial expressions | Implemented; no downloaded artwork or fonts |
-| Listening/thinking/playback state feedback | Implemented using firmware events |
-| Chan HA configuration flow, switch, select and sensor | Implemented |
+| ESPHome audio/display/optional screen touch | Implemented from M5Stack definitions; physical device test required |
+| Six original geometric expressions and voice-state feedback | Implemented |
+| HA configuration flow, Conversation switch, Expression select, Voice state sensor | Implemented |
 | Device-scoped `chan_set_expression` LLM tool | Implemented with stale-request guards |
-| Assist conversation loop | Configured; listens again after playback |
-| Gemini Live via an existing Assist integration | Documented test path; end-to-end robot compatibility unverified |
-| Voice interruption while speaking | Not implemented/verified by this firmware |
-| Camera transport, Frigate coordinates and head tracking | Next hardware milestone |
-| Per-speaker profiles and persistent memory | Planned; no personal data stored by Chan v0.1 |
-| Gestures and Guard mode | Not implemented |
+| Gemini Live via a community integration | Experimental; compatibility limitation described below |
+| Voice interruption, motion, camera/Frigate tracking, personal memory, Guard | Not implemented/verified |
 
-The conversation loop is **not full duplex**. A live provider alone does not
-make this firmware support barge-in. Switching Conversation off stops listening,
-requests playback stop, and resets the ESPHome conversation ID. The next
-activation starts a new conversation context.
+The Chan API exposes expressions only for its configured robot during an active
+listening/thinking/speaking state. Browser calls without the matching device ID
+receive no expression tool. Requests expire after 15 seconds and are invalidated
+on a new listening turn, sleep, observed disconnection, or integration unload.
+Expressions are not synchronized to individual words. Keep robot activation and
+raw firmware controls unexposed to generic Assist tools.
 
-There is no automatic inactivity timeout in this test. End the interaction
-explicitly. Wake-word activation and final inactive behavior remain to be agreed.
-No servo drivers or motion commands are configured, and no camera is enabled.
+No transcripts or personal memory are stored by Chan v0.1. The chosen cloud
+voice provider still handles audio according to its own configuration.
 
-## Requirements and pinned references
+## Gemini Live: optional, not the standard installation path yet
 
-- Official stock M5Stack StackChan; verify the SKU and hardware revision before
-  flashing. This configuration is not for arbitrary DIY Stack-chan assemblies.
-- Home Assistant **2026.10.0** is the integration API/test baseline. Earlier
-  releases have not been validated. Product entity translations include Ukrainian.
-- ESPHome **2026.9.1**, ESP-IDF **5.5.5** selected by that ESPHome release.
-- M5Stack external drivers at commit
-  `cc708ddcc9dea7cfc746b408d2495ce281bbf2d2`.
-- A working Assist pipeline. First test ordinary Assist; then try a dedicated
-  Gemini Live pipeline if desired.
+The independent [matt123p/ha-gemini-live](https://github.com/matt123p/ha-gemini-live)
+integration can be installed separately through HACS. However, its inspected
+v1.0.9 revision has a reproduced HA 2026.10 ToolResult serialization issue. Do not
+expect working home/expression tools on that combination simply by installing it.
 
-These are software baselines, not a record of a successful physical device test.
-See [validation](docs/VALIDATION.md) and [third-party attribution](THIRD_PARTY.md).
+The [compatibility document](docs/GEMINI_LIVE.md) records the exact limitation and
+a developer patch. Manual patching is not required or recommended for the normal
+Chan installation above. Use a working Assist pipeline for the initial test;
+a compatible HACS-delivered live backend remains a separate milestone.
 
-## 1. Prepare and flash ESPHome
+When the backend supports the required HA API, configure matching live STT,
+conversation and TTS entities in one dedicated Assist pipeline, enable both
+**Assist** and **Chan expressions** in its LLM APIs, and select it for the robot.
+A live provider does not establish barge-in support on the robot.
 
-1. Clone this repository and retain the entire `firmware/` directory, including
-   `packages/` and `face.h`.
-2. Copy `firmware/secrets.example.yaml` to `firmware/secrets.yaml`.
-3. Set the Wi-Fi credentials and generate a **new** API encryption key. The
-   example key is public test data and must be replaced:
+## Development and validation
 
-   ```sh
-   python -c "import base64,secrets; print(base64.b64encode(secrets.token_bytes(32)).decode())"
-   ```
+[VALIDATION.md](docs/VALIDATION.md) records software checks and physical tests
+still needed. Installation through ESPHome/HACS has no developer CLI requirement.
+Developers can use the pinned tools in `requirements-dev.txt` and a separate
+Python 3.14.2+ HA environment with `requirements-test.txt`.
 
-4. Install the pinned ESPHome version in an isolated Python environment:
-
-   ```sh
-   python -m venv .venv
-   # Linux/macOS:
-   . .venv/bin/activate
-   # Windows PowerShell instead:
-   # .venv\Scripts\Activate.ps1
-   python -m pip install -r requirements-dev.txt
-   python -m esphome config firmware/chan.yaml
-   python -m esphome compile firmware/chan.yaml
-   ```
-
-5. Connect the robot by a USB data cable. Identify its serial port and upload
-   using that port, for example:
-
-   ```sh
-   python -m esphome upload firmware/chan.yaml --device /dev/ttyACM0
-   # Windows example: --device COM5
-   python -m esphome logs firmware/chan.yaml --device /dev/ttyACM0
-   ```
-
-You can also use ESPHome Device Builder in HA with the same directory structure
-and pinned ESPHome version. OTA updates require the configured encryption key.
-
-**Windows paths with spaces:** ESP-IDF linker generation failed in our original
-workspace path. Use a checkout/build directory without spaces, or override the
-build directory with
-`python -m esphome -s build_path C:/chan-build compile firmware/chan.yaml`.
-
-Before flashing, identify a recovery route with
-[M5Stack's StackChan documentation](https://docs.m5stack.com/en/StackChan) and
-[M5Burner](https://docs.m5stack.com/en/uiflow/m5burner/intro).
-Keep the official firmware available. If serial connection fails, use the
-documented boot/download procedure for your actual controller revision and
-retry over USB. Do not alter GPIOs or power rails to fix a connection problem.
-
-## 2. Add the robot and Chan to Home Assistant
-
-1. Add the robot through HA's **ESPHome** integration, accepting discovery or
-   entering its address and the encryption key from your private secrets file.
-2. Assign a working Assist pipeline to the ESPHome device using its voice
-   assistant/pipeline selector. Use Ukrainian where the selected providers support it.
-3. Copy `custom_components/chan` into `<HA config>/custom_components/chan`.
-   Restart Home Assistant.
-4. Open **Settings → Devices & services → Add integration → Chan**.
-5. Select the native ESPHome entities named **Chan Active**, **Chan Expression**,
-   and **Chan Phase**, all from the same robot. Entity IDs may vary.
-6. Chan creates a Conversation switch, Expression select, and Voice state sensor.
-
-The configuration stores registry IDs, so renaming those firmware entities does
-not change the binding. Recreating the ESPHome device/entities requires removing
-and re-adding the Chan entry.
-
-## 3. First device test
-
-1. Confirm the robot boots with a dark screen and Conversation off.
-2. Turn Conversation on. A face should appear and the robot should listen.
-3. Ask a short Ukrainian question. Check microphone capture, a spoken reply,
-   the state dot, and the next listening turn.
-4. While active, choose `happy` or `warm` using the Expression select. Expressions
-   return to neutral after eight seconds or a subsequent listening/playback event.
-5. Stop Conversation during a response. Verify that playback actually stops and
-   the screen goes dark; record any residual buffering delay.
-6. Optionally enable the native **Chan Touch Activation** switch, then tap the
-   screen to toggle the conversation. It defaults off again after a reboot.
-7. Disconnect HA/network and verify the robot ends the active interaction. It
-   must remain inactive after reconnection until explicitly activated.
-
-Read [the hardware checklist](docs/VALIDATION.md) before treating a test as passed.
-Provider errors currently end the interaction; reactivate explicitly after fixing
-the error. Transcripts are not exposed as Chan entities or saved by this integration.
-The selected cloud voice provider still processes audio under its own configuration.
-
-## 4. Try Gemini Live and contextual expressions
-
-[matt123p/ha-gemini-live](https://github.com/matt123p/ha-gemini-live) is an optional,
-independent community integration. It is not the official HA Google Gemini
-integration and is not bundled here. We inspected v1.0.9 at commit
-`d4ad0e523eca92f1c395e82da14d6da0fafd71be`; device interoperability remains unverified.
-
-1. Install and configure that integration according to its own instructions.
-   **For the inspected v1.0.9 revision on HA 2026.10.0, apply the included
-   [ToolResult compatibility patch](docs/GEMINI_LIVE.md) first.** We reproduced
-   an SDK validation failure without this fix. Keep the provider key in HA,
-   never in robot firmware.
-2. Build a dedicated Assist pipeline using the matching live **STT, conversation,
-   and TTS** entities from the same entry. Assign it to the robot.
-3. In its **LLM APIs** options, keep **Assist** for permitted home actions and
-   also enable **Chan expressions**. Keep home entity exposure minimal and leave
-   the robot's activation and raw firmware controls unexposed to Assist.
-4. Set the voice agent's system instruction to Ukrainian conversation, for example:
-
-   ```text
-   You are Chan, a calm, friendly home robot. Speak Ukrainian naturally and briefly.
-   Use the provided Chan expression tool sparingly when appropriate to your response.
-   Keep routine home-control confirmations neutral. Do not announce tool calls.
-   ```
-
-5. Activate Chan from HA and try a celebratory statement or a request for support.
-   Inspect the Assist trace for `chan_set_expression` and check the face.
-
-Chan grants the tool only when the requesting HA device ID matches the configured
-robot and the firmware reports an active listening/thinking/speaking state.
-Testing from a browser with no matching device ID intentionally exposes no Chan
-expression tool. The Chan expression API cannot activate the robot or move its
-servos. Generic Assist tools can control entities you explicitly expose, so keep
-robot activation out of that exposed set.
-
-Expression calls have a 15-second lease and are invalidated on a new listening
-turn, sleep, or observed disconnection. They are not synchronized to individual
-words; expression timing and provider/session behavior must be tested on-device.
-Gemini Live native speech-to-speech and physical voice interruption are separate
-capabilities. Do not enable experimental barge-in on the assumption that this
-half-duplex test firmware supports it.
-
-## Development
-
-HA tests use a separate Python **3.14.2+** environment:
-
-```sh
-python3.14 -m venv .ha-venv
-. .ha-venv/bin/activate
-python -m pip install -r requirements-test.txt
-python -m pytest -q
-```
-
-Tests use real HA registries, service dispatch and LLM API classes with simulated
-firmware states; they do not require a robot or provider credentials. Firmware
-validation and compilation use the separate ESPHome environment above.
+CI prepares a clean node from `firmware/chan.example.yaml`, fetches the firmware
+through a Git commit, and compiles it without local headers or copied packages.
+It also tests real HA registries/services and the optional provider serializer
+without a robot or cloud credentials.
 
 ## Credits and license
 
-Original Chan code is licensed under the repository's [MIT license](LICENSE).
-The hardware configuration is adapted from M5Stack's official ESPHome example;
-its MIT notice is preserved in [LICENSES](LICENSES/m5stack-esphome-yaml-MIT.txt).
-[THIRD_PARTY.md](THIRD_PARTY.md) lists source links, revisions, licenses, and the
-difference between reused code, runtime dependencies, and optional integrations.
+Original Chan code is under [MIT](LICENSE). Hardware definitions are adapted
+from M5Stack's official ESPHome example, with its [MIT notice preserved](LICENSES/m5stack-esphome-yaml-MIT.txt).
+[THIRD_PARTY.md](THIRD_PARTY.md) lists sources, revisions, licenses, and reused
+code versus independently installed dependencies. No artwork, fonts, sounds,
+complete robot platform, or voice engine is bundled.
