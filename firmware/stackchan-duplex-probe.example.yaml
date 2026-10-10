@@ -1,0 +1,251 @@
+# Experimental inline AEC signal probe. Copy this entire YAML into ESPHome.
+substitutions:
+  name: stackchan-test
+  friendly_name: StackChan Test
+
+packages:
+  stackchan:
+    url: https://github.com/m5stack/esphome-yaml
+    files: [examples/kit/stackchan-bsp.factory.yaml]
+    ref: cc708ddcc9dea7cfc746b408d2495ce281bbf2d2
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/m5stack/esphome-yaml
+      ref: cc708ddcc9dea7cfc746b408d2495ce281bbf2d2
+      path: components
+    components: [axp2101, aw88298, aw9523b, si12t, m5ioe1, ftservo, scs9009]
+  - source:
+      type: git
+      url: https://github.com/n-IA-hane/esphome-audio-stack
+      ref: 0482d741a938378ef948e3b8f3dd31536f9f2cc9
+      path: esphome/components
+    components: [esp_audio_stack, esp_aec]
+  - source:
+      type: git
+      url: https://github.com/kyvaith/pipecat-homeassistant
+      ref: a538d1d1bacc8609061719f0b05c1622147ccb4b
+      path: components
+    components: [va_pipecat]
+
+esphome:
+  min_version: 2026.9.1
+  build_path: stackchan-probe-build
+  compile_process_limit: 4
+  on_boot:
+    - priority: 1000
+      then:
+        - lambda: |-
+            using namespace esphome::esp_audio_stack;
+            class AecProbe : public AudioProcessor {
+             public:
+              AudioProcessor *inner;
+              uint32_t frames = 0, failures = 0, zero_ref = 0;
+              uint64_t count[3] = {}, energy[3] = {};
+              int peak[3] = {};
+              explicit AecProbe(AudioProcessor *p) : inner(p) {}
+              bool is_initialized() const override { return inner->is_initialized(); }
+              FrameSpec frame_spec() const override { return inner->frame_spec(); }
+              uint32_t frame_spec_revision() const override { return inner->frame_spec_revision(); }
+              FeatureControl feature_control(AudioFeature f) const override { return inner->feature_control(f); }
+              bool set_feature(AudioFeature f, bool e) override { return inner->set_feature(f, e); }
+              ProcessorTelemetry telemetry() const override { return inner->telemetry(); }
+              bool reconfigure(int t, int m) override { return inner->reconfigure(t, m); }
+              void set_processing_active(bool a) override { inner->set_processing_active(a); }
+              bool wants_background_input() const override { return inner->wants_background_input(); }
+              void measure(int k, const int16_t *data, size_t n, size_t stride) {
+                if (!data) return;
+                for (size_t i = 0; i < n; i++) {
+                  int v = data[i * stride];
+                  int av = v < 0 ? -v : v;
+                  if (av > peak[k]) peak[k] = av;
+                  energy[k] += static_cast<int64_t>(v) * v;
+                }
+                count[k] += n;
+              }
+              bool process(const int16_t *mic, const int16_t *ref, int16_t *out, uint8_t channels) override {
+                const auto spec = inner->frame_spec();
+                measure(0, mic, spec.input_samples, channels ? channels : 1);
+                measure(1, ref, spec.input_samples, 1);
+                bool silent = true;
+                if (ref) {
+                  for (size_t i = 0; i < spec.input_samples; i++) {
+                    if (ref[i] != 0) { silent = false; break; }
+                  }
+                }
+                if (silent) zero_ref++;
+                bool ok = inner->process(mic, ref, out, channels);
+                if (ok) measure(2, out, spec.output_samples, 1);
+                else failures++;
+                if (++frames >= 32) {
+                  double rms[3] = {};
+                  for (int k = 0; k < 3; k++) {
+                    if (count[k]) rms[k] = sqrt(static_cast<double>(energy[k]) / count[k]);
+                  }
+                  ESP_LOGI("aec_probe", "mic rms=%.0f peak=%d | ref rms=%.0f peak=%d | out rms=%.0f peak=%d | zero_ref=%u/32 failed=%u",
+                    rms[0], peak[0], rms[1], peak[1], rms[2], peak[2],
+                    static_cast<unsigned>(zero_ref), static_cast<unsigned>(failures));
+                  frames = failures = zero_ref = 0;
+                  for (int k = 0; k < 3; k++) { count[k] = energy[k] = 0; peak[k] = 0; }
+                }
+                return ok;
+              }
+            };
+            static AecProbe probe(id(stackchan_aec));
+            id(duplex_audio).set_processor(&probe);
+            ESP_LOGI("aec_probe", "Installed: mic/ref before AEC, out after AEC; levels only, no delay estimate");
+    - priority: -100
+      then:
+        - lambda: id(duplex_speaker).set_volume(1.0f);
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+  on_connect: !remove
+  on_disconnect: !remove
+
+api:
+  custom_services: true
+
+logger:
+  level: DEBUG
+
+# Audio Stack is the sole I2S owner. No legacy speaker/media player may claim it.
+i2s_audio: !remove
+media_player: !remove
+esp32_camera: !remove
+esp32_improv: !remove
+
+# Retain official I2C codec drivers, power rails and reset handling.
+# Both converters now use the same physical 48 kHz clock. The stack converts
+# captured PCM to 16 kHz; the resampler converts Pipecat's 24 kHz playback.
+audio_adc:
+  - id: !extend es7210_adc
+    sample_rate: 48000
+
+esp_audio_stack:
+  id: duplex_audio
+  sample_rate: 48000
+  output_sample_rate: 16000
+  bits_per_sample: 16
+  slot_bit_width: 16
+  mic_channel: left
+  rx_slot_mode: mono
+  tx_channel: left
+  i2s_mclk_pin:
+    number: GPIO0
+    ignore_strapping_warning: true
+  i2s_bclk_pin: GPIO34
+  i2s_lrclk_pin: GPIO33
+  i2s_din_pin: GPIO14
+  i2s_dout_pin: GPIO13
+  buffers_in_psram: true
+  processor_id: stackchan_aec
+  aec_reference: ring_buffer
+  aec_reference_buffer_ms: 80
+  telemetry: true
+  telemetry_log_interval_frames: 128
+  on_state:
+    - logger.log:
+        format: "Audio Stack state: %s"
+        args: [state.c_str()]
+
+microphone:
+  - id: !remove i2s_mic
+  - platform: esp_audio_stack
+    id: duplex_mic
+
+speaker:
+  - id: !remove i2s_speaker
+  - platform: esp_audio_stack
+    id: duplex_speaker
+    buffer_duration: 100ms
+  - platform: resampler
+    id: pipecat_speaker
+    output_speaker: duplex_speaker
+    sample_rate: 48000
+    bits_per_sample: 16
+
+va_pipecat:
+  id: pipecat_va
+  auto_provision: true
+  microphone:
+    microphone: duplex_mic
+    channels: 0
+  speaker: pipecat_speaker
+  barge_in: true
+  playback_buffer_size: 2MB
+  on_phase:
+    - logger.log:
+        format: "Pipecat phase: %s"
+        args: [phase.c_str()]
+  on_transcript:
+    - logger.log:
+        format: "Pipecat %s: %s"
+        args: [role.c_str(), text.c_str()]
+  on_error:
+    - logger.log:
+        level: ERROR
+        format: "Pipecat error %s: %s"
+        args: [code.c_str(), message.c_str()]
+
+button:
+  - platform: template
+    name: AEC Mode FD
+    on_press:
+      - va_pipecat.stop: pipecat_va
+      - delay: 1s
+      - esp_aec.set_mode:
+          id: stackchan_aec
+          mode: fd_low_cost
+      - lambda: id(stackchan_aec).dump_config();
+  - platform: template
+    name: AEC Mode SR
+    on_press:
+      - va_pipecat.stop: pipecat_va
+      - delay: 1s
+      - esp_aec.set_mode:
+          id: stackchan_aec
+          mode: sr_low_cost
+      - lambda: id(stackchan_aec).dump_config();
+  - platform: template
+    name: Audio Diagnostics
+    on_press:
+      - esp_audio_stack.dump_diagnostics: duplex_audio
+  - platform: template
+    name: Pipecat Start
+    on_press:
+      - va_pipecat.start: pipecat_va
+  - platform: template
+    name: Pipecat Stop
+    on_press:
+      - va_pipecat.stop: pipecat_va
+
+number:
+  - platform: esp_audio_stack
+    master_volume:
+      name: Duplex Volume
+      speaker_id: duplex_speaker
+
+esp_aec:
+  id: stackchan_aec
+  sample_rate: 16000
+  mode: fd_low_cost
+  filter_length: 4
+
+switch:
+  - platform: esp_audio_stack
+    aec:
+      name: Echo Cancellation
+      restore_mode: ALWAYS_ON
+
+interval:
+  - interval: 10s
+    then:
+      - if:
+          condition:
+            lambda: return id(duplex_mic).is_running();
+          then:
+            - esp_audio_stack.dump_diagnostics: duplex_audio

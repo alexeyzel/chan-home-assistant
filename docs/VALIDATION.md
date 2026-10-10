@@ -91,3 +91,33 @@ limitations. No new release was created by this cleanup.
   actual processor configuration. Automatic diagnostics run during capture.
 - Firmware binaries contain placeholder Wi-Fi settings; use the copy-paste YAML
   with the owner's secrets, not these locally generated binaries.
+
+## FD owner test: echo still triggers interruption
+
+- Owner log (17) confirms `fd_low_cost`, initialized YES, AEC enabled, and
+  simultaneous capture/playback with no reported I2S error.
+- At 18:24:20 assistant says "Chym mozhu dopomohty"; at 18:24:23 server sends
+  barge_in and at 18:24:24 user transcript contains "mozhe dopomohty".
+  Further assistant phrases reappear as user speech. FD did not solve feedback.
+- Input WAV is mono PCM16 / 16 kHz, 17.568 s, peak 32710; only 0.0146% of
+  samples have absolute value >=32000. This does not establish ADC clipping.
+- Volume has two software layers: output 0.8 and master 0.8 yield logged
+  combined linear gain 0.105. The on-boot speaker volume is not the master
+  volume entity and compounds its attenuation.
+- Underrun counts include idle periods and cannot alone establish playback
+  starvation. Zero AFE counters are unsupported standalone-AEC telemetry.
+- Next diagnosis needs raw mic, playback reference, and processed mic aligned
+  in time; current logs and processed input alone cannot isolate reference
+  alignment, gain, or acoustic distortion. Avoid claiming an AEC-mode fix.
+
+## Inline signal probe build
+
+- Single-file `stackchan-duplex-probe.example.yaml` validated and compiled on
+  ESPHome 2026.9.1 / ESP-IDF 5.5.5: flash 1,241,427 bytes; static DIRAM 124,343
+  / 341,760 bytes. Hardware test pending.
+- Inline AudioProcessor wrapper delegates to EspAec and logs mic/reference/output
+  RMS and peaks every 32 frames, including zero-reference and failure counts.
+  It measures input before processing (buffers can alias) and output on success.
+  This provides levels, not acoustic delay or separate audio recordings.
+- Speaker output gain is unity, leaving the master-volume entity as the user
+  control. Begin the owner test at 50%, since attenuation is now lower.

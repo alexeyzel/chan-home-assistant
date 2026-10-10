@@ -1,6 +1,24 @@
 # Experimental duplex firmware: device test
 
-## Current single-file FD experiment
+## Current inline signal probe
+
+Use `stackchan-duplex-probe.example.yaml` as one copy-paste configuration.
+The wrapper is installed at boot priority 1000, before the audio components
+start; it delegates processing unchanged to the pinned standalone AEC.
+It logs RMS/peak for mic and reference before processing and output immediately
+after processing every 32 frames (about 1 second at the current frame size).
+Output levels exclude any subsequent microphone gain applied by Audio Stack.
+`zero_ref` counts all-zero/missing reference frames; `failed` counts unsuccessful
+processor calls. Idle reference silence is normal. Compare during robot speech.
+This does not record three audio tracks or estimate acoustic delay.
+
+The output speaker layer is unity; use Duplex Volume as the volume control.
+Start at 50%, then choose an audible level before starting the test.
+With Echo Cancellation on, request a long story and remain silent for 15 seconds.
+Stop if it self-interrupts repeatedly. Return logs including `aec_probe` lines
+and the Pipecat Input recording. No need for another SR comparison yet.
+
+## Previous single-file FD experiment
 
 Copy the entire `stackchan-duplex-fd.example.yaml` into the existing device YAML.
 Only the existing ESPHome Wi-Fi secrets are needed; all dependencies are remote.

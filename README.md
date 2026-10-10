@@ -9,10 +9,11 @@ There is no new tested Pipecat firmware release yet.
 
 ## Full-duplex experiment
 
-Current copy-paste experiment: [FD AEC diagnostic YAML](firmware/stackchan-duplex-fd.example.yaml).
-This is a single file with remote dependencies and no local includes. It starts
-with `fd_low_cost`, exposes FD/SR mode buttons, and enables timing/buffer telemetry.
-Its acoustic effectiveness is not yet verified.
+Current copy-paste experiment: [AEC signal probe YAML](firmware/stackchan-duplex-probe.example.yaml).
+This is a single file with remote dependencies and an inline processor wrapper.
+It logs mic/reference/output levels around FD AEC and removes compounded output
+attenuation. Both SR and FD owner tests still self-interrupted; this probe is
+diagnostic, not a confirmed echo fix.
 
 The immediate milestone is simultaneous capture/playback and echo-controlled
 voice interruption. Start with [raw duplex](firmware/stackchan-duplex.example.yaml),
