@@ -9,6 +9,11 @@ There is no new tested Pipecat firmware release yet.
 
 ## Full-duplex experiment
 
+Current copy-paste experiment: [FD AEC diagnostic YAML](firmware/stackchan-duplex-fd.example.yaml).
+This is a single file with remote dependencies and no local includes. It starts
+with `fd_low_cost`, exposes FD/SR mode buttons, and enables timing/buffer telemetry.
+Its acoustic effectiveness is not yet verified.
+
 The immediate milestone is simultaneous capture/playback and echo-controlled
 voice interruption. Start with [raw duplex](firmware/stackchan-duplex.example.yaml),
 then test [AEC](firmware/stackchan-duplex-aec.example.yaml). Follow the

@@ -65,4 +65,29 @@ limitations. No new release was created by this cleanup.
 - Generated AW88298 source hash matches the pinned M5Stack checkout.
 - Builds used placeholder Wi-Fi credentials. Do not install their local binaries;
   compile the YAML in the owner's ESPHome environment with real secrets.
-- No experimental firmware has been installed or physically validated.
+- At this build checkpoint, no experimental firmware had been installed.
+
+## Subsequent owner device tests, 2026-10-10
+
+- Owner installed both raw-duplex and SR AEC variants and heard replies while
+  microphone transmission continued. Shared-bus blocking was not observed in
+  the supplied tests.
+- SR AEC initialized and was enabled, but reply fragments were recognized as
+  user speech and triggered repeated interruptions. At 50% volume the issue
+  persisted with reported uplink peaks below int16 saturation. Uplink peaks
+  alone do not locate clipping or quantify echo cancellation.
+- Pipecat also suffered a separate expired Gemini session: connection task
+  exception followed by `ready=False session=False` despite live audio ingress.
+- The next experiment is the single-file FD AEC configuration with runtime
+  mode comparison and diagnostic logging. It is not an established echo fix.
+
+## FD diagnostic build, 2026-10-10
+
+- `stackchan-duplex-fd.example.yaml` passed schema validation and compiled with
+  ESPHome 2026.9.1 / ESP-IDF 5.5.5. Flash usage: 1,239,383 bytes; static DIRAM:
+  124,175 / 341,760 bytes. Runtime memory and echo suppression remain untested.
+- Build uses a separate directory after Windows denied cleanup of the old build.
+- FD is the boot default; runtime FD/SR buttons stop the session and print the
+  actual processor configuration. Automatic diagnostics run during capture.
+- Firmware binaries contain placeholder Wi-Fi settings; use the copy-paste YAML
+  with the owner's secrets, not these locally generated binaries.

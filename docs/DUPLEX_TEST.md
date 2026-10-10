@@ -1,5 +1,32 @@
 # Experimental duplex firmware: device test
 
+## Current single-file FD experiment
+
+Copy the entire `stackchan-duplex-fd.example.yaml` into the existing device YAML.
+Only the existing ESPHome Wi-Fi secrets are needed; all dependencies are remote.
+Retain local API/OTA credentials if configured. The older two-file AEC example
+below is historical and is not required for this test.
+
+Start with Echo Cancellation on and Duplex Volume at a clearly audible, fixed
+level. `fd_low_cost` is selected at boot. Ask for a story and remain silent for
+15 seconds; then deliberately interrupt once. Capture the Input/Output WAVs and
+device logs. Diagnostics are automatic every 10 seconds while capture runs.
+
+To compare the old mode, press AEC Mode SR, wait for the actual mode in the log,
+then press Pipecat Start. The buttons stop the local conversation before changing
+mode; they do not restart it automatically. Return with AEC Mode FD. A failed
+upstream mode change can retain the previous mode, so inspect the configuration
+dump rather than treating a button press as proof of success.
+
+Telemetry reports frame timing, underruns, memory and queue state. The standalone
+AEC implementation does not populate AFE-specific counters; zeros in those lines
+are not proof of echo suppression. This build does not measure reference RMS or
+acoustic delay. Input recordings and controlled A/B tests remain necessary.
+
+The separate Gemini session-expiration failure is not fixed by this YAML. If
+the server reports `ready=False session=False`, restore the backend connection
+before comparing AEC modes.
+
 These are experimental source configurations, not hardware-tested releases.
 Keep your actual working half-duplex YAML and binary. The official baseline in
 this repository does not include your working Pipecat overlay.

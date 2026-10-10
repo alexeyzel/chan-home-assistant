@@ -36,3 +36,5 @@ implemented capabilities. Coordinator placement remains to be decided when neede
 
 Use Ukrainian with the owner and English for identifiers, documentation, and
 commits. Keep scope incremental. Distinguish observations from assumptions.
+Deliver new device configurations as one copy-paste YAML with remote dependencies;
+do not require local includes, file uploads, or manual component installation.
