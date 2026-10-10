@@ -5,6 +5,8 @@
 The current conversation supersedes the previous Assist-first design.
 Target the official M5Stack StackChan AI Desktop Robot with ESPHome.
 Prioritize Gemini Live through kyvaith/pipecat-homeassistant.
+The immediate milestone is full-duplex audio, echo control, and voice interruption;
+see docs/FULL_DUPLEX_POC.md. Defer faces, gestures and other product features.
 HA Assist is a later separate mode. A custom Chan HA integration is not currently
 required; do not rebuild the removed integration without a demonstrated need.
 

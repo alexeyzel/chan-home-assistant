@@ -31,9 +31,13 @@ Evidence: owner-provided logs and owner confirmation. Raw logs are not committed
 - AW88298 reported Initialized: NO despite setup completion and audible playback.
   Inspected upstream setup did not set the flag; this alone is not audio failure.
 - Initial log covered about 21 seconds, not a long stability test.
-- Microphone capture, head-touch transitions, and concurrent load remain unverified.
-- Pipecat YAML was proposed in chat, but compilation and device operation have
-  not been confirmed. It is not a tested release.
+- Head-touch transitions and sustained concurrent load remain unverified.
+- Subsequent owner tests confirmed clear microphone recordings and audible
+  Pipecat replies with barge-in disabled. Exact deployed YAML/revisions are still
+  needed for reproducibility; this is not a tested release.
+- Enabling barge-in produced repeated `Parent bus is busy` speaker start errors
+  while capture continued. Reverting restored conversation, per owner report.
+  See FULL_DUPLEX_POC.md for the next milestone.
 
 ## Next acceptance test
 
@@ -46,3 +50,19 @@ Evidence: owner-provided logs and owner confirmation. Raw logs are not committed
 
 Before a new release, record results, pin sources, and document recovery and
 limitations. No new release was created by this cleanup.
+
+## 2026-10-10: experimental duplex build validation
+
+- Local toolchain: ESPHome 2026.9.1, ESP-IDF 5.5.5, Windows, Python 3.12.
+- Raw duplex and AEC example configurations passed ESPHome schema validation.
+- Final raw duplex example (including diagnostics) compiled successfully:
+  image 1,180,615 bytes, static DIRAM usage 120,655 / 341,760 bytes. These figures
+  do not measure runtime heap/PSRAM headroom or audio performance.
+- AEC variant compiled successfully: image 1,236,623 bytes, static DIRAM usage
+  123,879 / 341,760 bytes. No device-level AEC effectiveness is claimed.
+- Generated C++ contains Audio Stack microphone/speaker, no legacy I2S
+  microphone/speaker, and both ES7210/AW88298 are configured for 48 kHz.
+- Generated AW88298 source hash matches the pinned M5Stack checkout.
+- Builds used placeholder Wi-Fi credentials. Do not install their local binaries;
+  compile the YAML in the owner's ESPHome environment with real secrets.
+- No experimental firmware has been installed or physically validated.

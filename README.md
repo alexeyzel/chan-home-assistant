@@ -3,9 +3,17 @@
 ESPHome project for the official M5Stack StackChan AI Desktop Robot.
 
 This repository is being rebuilt from a hardware baseline tested on the owner's
-robot. The next milestone is Gemini Live through the existing
+robot. Half-duplex Gemini Live conversation was confirmed by the owner through the existing
 [Pipecat Assist add-on](https://github.com/kyvaith/pipecat-homeassistant).
 There is no new tested Pipecat firmware release yet.
+
+## Full-duplex experiment
+
+The immediate milestone is simultaneous capture/playback and echo-controlled
+voice interruption. Start with [raw duplex](firmware/stackchan-duplex.example.yaml),
+then test [AEC](firmware/stackchan-duplex-aec.example.yaml). Follow the
+[device test instructions](docs/DUPLEX_TEST.md). These configurations are
+experimental; retain the owner-tested half-duplex firmware for rollback.
 
 ## Current baseline
 
@@ -29,7 +37,8 @@ Pin both the BSP and external drivers before publishing a new firmware release.
 - Frigate identity and tracking with calibrated coordinate mapping.
 - Server-side personal prompts and an unknown/guest profile.
 
-Pipecat on the robot, microphone capture, echo handling, interruption, tracking,
+Pipecat microphone capture and audible replies were confirmed by the owner.
+Full-duplex audio, echo handling, reliable interruption, tracking,
 and personalization remain unverified. Do not command motion until the reported
 Y-angle mismatch is resolved.
 

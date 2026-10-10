@@ -1,0 +1,28 @@
+# Second-stage experiment: use only after raw simultaneous capture/playback works.
+packages:
+  duplex: !include stackchan-duplex.example.yaml
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/n-IA-hane/esphome-audio-stack
+      ref: 0482d741a938378ef948e3b8f3dd31536f9f2cc9
+      path: esphome/components
+    components: [esp_aec]
+
+esp_aec:
+  id: stackchan_aec
+  sample_rate: 16000
+  mode: sr_low_cost
+  filter_length: 4
+
+esp_audio_stack:
+  processor_id: stackchan_aec
+  aec_reference: ring_buffer
+  aec_reference_buffer_ms: 80
+
+switch:
+  - platform: esp_audio_stack
+    aec:
+      name: Echo Cancellation
+      restore_mode: RESTORE_DEFAULT_ON

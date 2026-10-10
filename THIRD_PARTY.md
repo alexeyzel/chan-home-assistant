@@ -17,9 +17,21 @@ The root MIT license covers original project material only.
 
 [kyvaith/pipecat-homeassistant](https://github.com/kyvaith/pipecat-homeassistant)
 is the owner's existing add-on and proposed source of va_pipecat.
-No component code is vendored. Device compatibility remains unverified.
+No component code is vendored. Half-duplex operation was owner-confirmed;
+full-duplex compatibility remains unverified.
 Record revision and applicable notices before distributing code or binaries.
 Gemini Live is a Google service subject to its service terms.
+
+## Experimental audio path
+
+[ESPHome Audio Stack](https://github.com/n-IA-hane/esphome-audio-stack), MIT,
+is fetched at `0482d741a938378ef948e3b8f3dd31536f9f2cc9` by the experimental
+configurations. Its sources and optional Espressif AEC dependencies retain their
+upstream notices/licenses. No component implementation is copied into this repo.
+Experimental Pipecat revision: `a538d1d1bacc8609061719f0b05c1622147ccb4b`.
+Experimental M5Stack BSP/driver revision: `cc708ddcc9dea7cfc746b408d2495ce281bbf2d2`.
+The upstream [Audio Stack](LICENSES/esphome-audio-stack-MIT.txt) and
+[Pipecat](LICENSES/pipecat-homeassistant-MIT.txt) MIT notices are retained.
 
 ## Historical material
 
