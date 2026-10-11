@@ -21,7 +21,13 @@ external_components:
       url: https://github.com/n-IA-hane/esphome-audio-stack
       ref: 0482d741a938378ef948e3b8f3dd31536f9f2cc9
       path: esphome/components
-    components: [esp_audio_stack, esp_aec]
+    components: [esp_aec]
+  - source:
+      type: git
+      url: https://github.com/alexeyzel/chan-home-assistant
+      ref: 4541119291c9b67b6fa44f75fe27e04ae0480026
+      path: components
+    components: [esp_audio_stack]
   - source:
       type: git
       url: https://github.com/kyvaith/pipecat-homeassistant
@@ -31,7 +37,7 @@ external_components:
 
 esphome:
   min_version: 2026.9.1
-  build_path: stackchan-hwref-build
+  build_path: stackchan-hwref-fix-build
   compile_process_limit: 4
   on_boot:
     - priority: 1000

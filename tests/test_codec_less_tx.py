@@ -1,6 +1,6 @@
 """Compile-time regression tests of the actual read_layout_ body with mock APIs.
 
-Usage: python tests/test_codec_less_tx.py path/to/compile_commands.json
+Usage: python tests/test_codec_less_tx.py path/to/compile_commands.json [source.cpp]
 Uses the existing ESPHome compiler; no device or host C++ runtime needed.
 """
 import json
@@ -9,7 +9,8 @@ import subprocess
 import sys
 
 root = Path(__file__).resolve().parents[1]
-source = (root / "components/esp_audio_stack/codec_dev_backend.cpp").read_text()
+source_path = Path(sys.argv[2]) if len(sys.argv) > 2 else root / "components/esp_audio_stack/codec_dev_backend.cpp"
+source = source_path.read_text()
 start = source.index("bool CodecDevBackend::read_layout_(")
 end = source.index("\nbool CodecDevBackend::open(", start)
 body = "constexpr " + source[start:end]

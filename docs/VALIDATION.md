@@ -214,3 +214,49 @@ limitations. No new release was created by this cleanup.
   separately. A quiet processed mic alone is not success.
 - Qualification also requires several audible volumes, volume changes during
   playback, repeated sessions and reboot. Hardware effectiveness is unverified.
+
+## Hardware-reference startup failure: log 24
+
+- Owner test of the hardware-reference YAML fails before microphone capture.
+  At 19:13:03 and 19:13:17 TX/RX TDM initialization succeeds, then codec-dev
+  reports layout resolution error 0x106 and Audio Stack reports
+  `Cannot query effective TX codec layout`. Backend open fails and I2S closes.
+- Pipecat WebSocket connects at 19:13:09. Subsequent no-frames warnings and
+  the 7000 ms no-speech timeout are consequences of the unavailable microphone,
+  not evidence of Gemini/VAD failure.
+- Source confirms Audio Stack creates a TX codec-dev handle even without an
+  output codec, then unconditionally queries its layout. The bundled codec-dev
+  sample-format layout resolver returns NOT_SUPPORT without a codec interface.
+  AW88298 is intentionally owned by the separate official driver; adding an
+  unrelated output codec or ignoring all layout failures would be incorrect.
+- Hardware-reference configuration is currently blocked at startup. Compilation
+  passed but did not validate this runtime path. No conclusion about actual
+  reference mapping, echo cancellation or double-talk can be drawn from log 24.
+  A driver correction for codec-less TX layout handling is required before
+  repeating the hardware test; clean builds or volume changes do not address it.
+
+## Log 24 driver correction
+
+- Vendored Audio Stack at upstream 0482d741a938378ef948e3b8f3dd31536f9f2cc9
+  with its MIT license. Only codec_dev_backend.cpp differs from the upstream
+  component source; see components/esp_audio_stack/CHAN_PATCH.md.
+- Codec-less TX uses live bus validation for single-slot 16-bit TDM. It keeps
+  the diagnostic memory map zero/unavailable instead of querying missing codec
+  channel identities. Rate, data width, slot count/mask and slot width checks
+  remain active. RX and managed TX retain mandatory codec layout queries.
+- 17 compile-time C++ mock scenarios exercise the production read_layout_
+  body. They include the reported failure, bus query failures, format/mask
+  mismatches, and RX/managed-TX layout failures/successes. Patched code passes;
+  unpatched code fails scenario 0. This tests control flow, not physical I2S.
+- YAML fetches the patched component at repository commit
+  4541119291c9b67b6fa44f75fe27e04ae0480026. Remote configuration validation
+  passed. The alternate build directory avoids a local Windows cleanup failure;
+  clean building itself is not the runtime fix.
+- Full compile passed with ESPHome 2026.9.1 / ESP-IDF 5.5.5, first with local
+  source and then with the exact delivered YAML using the GitHub dependency.
+  Flash: 1,301,575 bytes; static DIRAM: 126,847 / 341,760 bytes.
+  The delivered file was compiled under an ignored local filename to reuse
+  its build metadata; file contents were identical. No robot was flashed here.
+- Owner retest must confirm `TX externally managed: validated I2S bus`,
+  audio-stack startup, actual mic frames and audible output. Hardware reference
+  effectiveness and human interruption still require the earlier test plan.
