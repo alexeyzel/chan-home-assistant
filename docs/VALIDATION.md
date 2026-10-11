@@ -154,3 +154,17 @@ limitations. No new release was created by this cleanup.
   reporting. No audio delay or microphone gating is applied by the probe.
 - Boot sets ADC gain 18 dB, output unity and volume floor -30 dB. Real DMA
   timestamps and sample-continuous TX reference changes remain outstanding.
+
+## Log 21 and fixed-reference-delay experiment
+
+- Log 21 candidates: 176 ms (0.822), 168 ms (0.822), 164 ms (0.951),
+  160 ms (0.760). The 204 ms candidate has a close alternative (0.844 vs
+  0.814); low-correlation candidates are not reliable delay measurements.
+- Added fixed 160 ms reference delay ahead of AEC; diagnostic correlation now
+  measures residual lag. Mic and speaker paths are not intentionally delayed.
+- Synthetic impulse verified exact 2560-sample shift across frame/ring
+  boundaries. ESPHome 2026.9.1 compile passed: flash 1,242,667 bytes,
+  static DIRAM 132,567 / 341,760 bytes. Physical effectiveness pending.
+- This delay is not a hardware constant. Buffer configuration, scheduling,
+  conversion and signal-processing latency can contribute. Load dependence
+  and exact DMA alignment have not been measured.

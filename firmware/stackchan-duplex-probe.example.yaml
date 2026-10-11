@@ -46,6 +46,9 @@ esphome:
               int peak[3] = {};
               float mh[256] = {}, rh[256] = {};
               unsigned pos = 0, filled = 0, bins = 0;
+              int16_t ref_history[2560] = {}, aligned_ref[512] = {};
+              unsigned ref_pos = 0;
+              uint32_t last_process_ms = 0;
               uint32_t ma = 0, ra = 0, sample_count = 0;
               void capture(const int16_t *m, const int16_t *r, size_t n, size_t stride) {
                 if (!m || !r) return;
@@ -117,6 +120,23 @@ esphome:
               }
               bool process(const int16_t *mic, const int16_t *ref, int16_t *out, uint8_t channels) override {
                 const auto spec = inner->frame_spec();
+                if (spec.sample_rate != 16000 || spec.input_samples != 512 || !ref) {
+                  ESP_LOGE("aec_delay", "Unsupported reference layout; compensation bypassed");
+                  return inner->process(mic, ref, out, channels);
+                }
+                uint32_t now = millis();
+                if (now - last_process_ms > 250) {
+                  for (auto &v : ref_history) v = 0;
+                  ref_pos = 0;
+                  pos = filled = bins = ma = ra = sample_count = 0;
+                }
+                last_process_ms = now;
+                for (size_t i = 0; i < spec.input_samples; i++) {
+                  aligned_ref[i] = ref_history[ref_pos];
+                  ref_history[ref_pos] = ref[i];
+                  ref_pos = (ref_pos + 1) % 2560;
+                }
+                ref = aligned_ref;
                 capture(mic, ref, spec.input_samples, channels ? channels : 1);
                 measure(0, mic, spec.input_samples, channels ? channels : 1);
                 measure(1, ref, spec.input_samples, 1);
@@ -147,7 +167,7 @@ esphome:
             };
             static AecProbe probe(id(stackchan_aec));
             id(duplex_audio).set_processor(&probe);
-            ESP_LOGI("aec_probe", "Installed: levels and coarse 4ms envelope lag; no automatic delay correction");
+            ESP_LOGI("aec_probe", "Installed: fixed 160ms reference delay; aec_delay reports residual lag");
     - priority: -100
       then:
         - lambda: |-

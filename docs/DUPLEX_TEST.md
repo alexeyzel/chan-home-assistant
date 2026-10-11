@@ -2,13 +2,22 @@
 
 ## Current inline signal probe
 
+Current controlled experiment delays the AEC reference by 2560 samples (160 ms
+at 16 kHz). It does not delay speaker playback or uplink mic audio. The envelope
+probe now sees the delayed reference, so `aec_delay` reports residual lag.
+The reference history is cleared after a processing gap longer than 250 ms.
+This is an experiment based on log 21, not a calibrated hardware constant.
+Keep audible volume fixed for the first comparison. If feedback improves,
+test deliberate interruption and then different comfortable volume levels.
+The legacy upstream full-frame reference gating remains unchanged.
+
 The latest probe also estimates coarse envelope lag between pre-AEC mic and
 the reference supplied to AEC. It uses 4 ms mean-absolute-value bins, a 1.024 s
 history, a common 512 ms comparison interval and lags from -256 to +256 ms.
 Positive lag means the mic envelope follows the reference. It logs every
 2.048 s of processed audio. Correlation and the best alternative more than
 12 ms away are reported; edge hits, weak or similarly strong alternatives
-are ambiguous. No automatic delay adjustment is made. This is not a DMA
+are ambiguous. No adaptive delay adjustment is made. This is not a DMA
 timestamp measurement or a phase-accurate acoustic path estimate.
 
 At boot ADC gain is set to 18 dB and the master volume curve floor to -30 dB.
