@@ -2,6 +2,23 @@
 
 ## Current inline signal probe
 
+The latest probe also estimates coarse envelope lag between pre-AEC mic and
+the reference supplied to AEC. It uses 4 ms mean-absolute-value bins, a 1.024 s
+history, a common 512 ms comparison interval and lags from -256 to +256 ms.
+Positive lag means the mic envelope follows the reference. It logs every
+2.048 s of processed audio. Correlation and the best alternative more than
+12 ms away are reported; edge hits, weak or similarly strong alternatives
+are ambiguous. No automatic delay adjustment is made. This is not a DMA
+timestamp measurement or a phase-accurate acoustic path estimate.
+
+At boot ADC gain is set to 18 dB and the master volume curve floor to -30 dB.
+The speaker output layer stays at unity. 50% now means -15 dB rather than
+-24.5 dB; 0% remains mute and 100% remains unity. Compare with previous tests
+at matched audible loudness, not equal slider positions.
+Begin at 30%, set a comfortable audible level, then request a long answer
+and remain silent. Collect `aec_delay`, `aec_probe` and performance lines.
+Do not infer AEC effectiveness from an envelope correlation alone.
+
 Use `stackchan-duplex-probe.example.yaml` as one copy-paste configuration.
 The wrapper is installed at boot priority 1000, before the audio components
 start; it delegates processing unchanged to the pinned standalone AEC.
@@ -10,7 +27,7 @@ after processing every 32 frames (about 1 second at the current frame size).
 Output levels exclude any subsequent microphone gain applied by Audio Stack.
 `zero_ref` counts all-zero/missing reference frames; `failed` counts unsuccessful
 processor calls. Idle reference silence is normal. Compare during robot speech.
-This does not record three audio tracks or estimate acoustic delay.
+This does not record three audio tracks; the added envelope estimate is coarse.
 
 The output speaker layer is unity; use Duplex Volume as the volume control.
 Start at 50%, then choose an audible level before starting the test.

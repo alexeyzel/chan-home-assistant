@@ -121,3 +121,36 @@ limitations. No new release was created by this cleanup.
   This provides levels, not acoustic delay or separate audio recordings.
 - Speaker output gain is unity, leaving the master-volume entity as the user
   control. Begin the owner test at 50%, since attenuation is now lower.
+
+## Owner signal-probe tests, 2026-10-11
+
+- Log 18: reference is nonzero during playback, processor calls succeed, but
+  pre-AEC mic peaks reach 32768 and reply text reappears as user speech.
+- Owner applied ES7210 mic_gain 18 instead of inherited 36. Logs 19 and 20
+  have lower mic levels, without full-scale peaks in probe windows, yet feedback
+  persists. Log 20 at 10:28:09: mic RMS 434, reference 170, output 428;
+  10:28:10: mic 382, reference 279, output 377. Gain reduction is not a fix.
+- Supplied session 254a82c2 WAVs: input PCM16 mono 16 kHz, 71.424 s, peak
+  18001; output PCM16 mono 24 kHz, 46.644 s, peak 28681. They are server-side
+  recordings, not synchronized raw-mic / actual-TX / processed-mic tracks;
+  no device AEC reference delay estimate is established from them.
+- Pinned Audio Stack applies software volume before deriving reference, so
+  user-volume awareness is already present. Reference is saved only on full
+  speaker frames; its timing versus actual DMA playback still needs measurement.
+- Software master curve defaults to -49 dB at the lower end. At 50%, gain is
+  about -24.5 dB / 0.060 amplitude, explaining strong digital attenuation but
+  not measuring acoustic loudness. Volume UX and AEC timing are separate work.
+- Owner requires comfortable volume control without manual AEC retuning;
+  acceptance must include multiple audible levels and changes during playback.
+
+## Coarse envelope delay probe, 2026-10-11
+
+- Compiled on ESPHome 2026.9.1: flash 1,242,391 bytes; static DIRAM 126,415
+  / 341,760 bytes. Device runtime and CPU overhead are not yet measured.
+- Positive/negative lag and gain scaling were checked with deterministic
+  synthetic envelopes; constant silence is rejected. This does not validate
+  real-world echo delay estimation or solve echo cancellation.
+- Added 4 ms envelope correlation over +/-256 ms, including alternative peak
+  reporting. No audio delay or microphone gating is applied by the probe.
+- Boot sets ADC gain 18 dB, output unity and volume floor -30 dB. Real DMA
+  timestamps and sample-continuous TX reference changes remain outstanding.

@@ -24,6 +24,9 @@ implemented capabilities. Coordinator placement remains to be decided when neede
   behavior. Compilation is not a successful device test.
 - Account for shared audio resources and sample rates; prevent competing playback.
 - Voice interruption requires measured echo control and buffer cancellation.
+- User volume must remain a comfort control, not an AEC calibration step.
+  Validate echo suppression across the supported audible volume range and during
+  volume changes. Do not present low playback volume as the product solution.
 - Resolve the Y-angle mismatch before motion; enforce calibrated limits and use
   one owner to arbitrate tracking and gestures.
 - Frigate identity does not establish the speaker or grant HA permissions.

@@ -44,6 +44,57 @@ esphome:
               uint32_t frames = 0, failures = 0, zero_ref = 0;
               uint64_t count[3] = {}, energy[3] = {};
               int peak[3] = {};
+              float mh[256] = {}, rh[256] = {};
+              unsigned pos = 0, filled = 0, bins = 0;
+              uint32_t ma = 0, ra = 0, sample_count = 0;
+              void capture(const int16_t *m, const int16_t *r, size_t n, size_t stride) {
+                if (!m || !r) return;
+                for (size_t i = 0; i < n; i++) {
+                  int mv = m[i * stride], rv = r[i];
+                  ma += mv < 0 ? -mv : mv;
+                  ra += rv < 0 ? -rv : rv;
+                  if (++sample_count == 64) {
+                    mh[pos] = ma / 64.0f; rh[pos] = ra / 64.0f;
+                    pos = (pos + 1) % 256;
+                    if (filled < 256) filled++;
+                    bins++;
+                    ma = ra = sample_count = 0;
+                  }
+                }
+              }
+              void estimate() {
+                if (filled < 256 || bins < 512) return;
+                bins = 0;
+                float score[129] = {};
+                float best = -2.0f;
+                int best_lag = 0;
+                for (int lag = -64; lag <= 64; lag++) {
+                  float sm = 0, sr = 0, mm = 0, rr = 0, mr = 0;
+                  for (int t = 64; t < 192; t++) {
+                    float m = mh[(pos + t) % 256];
+                    float r = rh[(pos + t - lag) % 256];
+                    sm += m; sr += r; mm += m*m; rr += r*r; mr += m*r;
+                  }
+                  float vm = mm - sm*sm/128.0f;
+                  float vr = rr - sr*sr/128.0f;
+                  float c = -2.0f;
+                  if (vm > 128.0f && vr > 128.0f)
+                    c = (mr - sm*sr/128.0f) / sqrtf(vm*vr);
+                  score[lag+64] = c;
+                  if (c > best) { best = c; best_lag = lag; }
+                }
+                float other = -2.0f;
+                for (int lag = -64; lag <= 64; lag++) {
+                  if (abs(lag-best_lag) > 3 && score[lag+64] > other)
+                    other = score[lag+64];
+                }
+                if (best < -1.0f) {
+                  ESP_LOGI("aec_delay", "insufficient varying mic/reference signal");
+                } else {
+                  ESP_LOGI("aec_delay", "envelope candidate=%dms corr=%.3f alternative=%.3f edge=%s; positive=mic lags ref; estimate only",
+                    best_lag*4, best, other, abs(best_lag)==64 ? "YES" : "NO");
+                }
+              }
               explicit AecProbe(AudioProcessor *p) : inner(p) {}
               bool is_initialized() const override { return inner->is_initialized(); }
               FrameSpec frame_spec() const override { return inner->frame_spec(); }
@@ -66,6 +117,7 @@ esphome:
               }
               bool process(const int16_t *mic, const int16_t *ref, int16_t *out, uint8_t channels) override {
                 const auto spec = inner->frame_spec();
+                capture(mic, ref, spec.input_samples, channels ? channels : 1);
                 measure(0, mic, spec.input_samples, channels ? channels : 1);
                 measure(1, ref, spec.input_samples, 1);
                 bool silent = true;
@@ -78,6 +130,7 @@ esphome:
                 bool ok = inner->process(mic, ref, out, channels);
                 if (ok) measure(2, out, spec.output_samples, 1);
                 else failures++;
+                estimate();
                 if (++frames >= 32) {
                   double rms[3] = {};
                   for (int k = 0; k < 3; k++) {
@@ -94,10 +147,15 @@ esphome:
             };
             static AecProbe probe(id(stackchan_aec));
             id(duplex_audio).set_processor(&probe);
-            ESP_LOGI("aec_probe", "Installed: mic/ref before AEC, out after AEC; levels only, no delay estimate");
+            ESP_LOGI("aec_probe", "Installed: levels and coarse 4ms envelope lag; no automatic delay correction");
     - priority: -100
       then:
-        - lambda: id(duplex_speaker).set_volume(1.0f);
+        - lambda: |-
+            id(duplex_speaker).set_volume(1.0f);
+            id(duplex_audio).set_master_volume_min_db(-30.0f);
+            if (!id(es7210_adc).set_mic_gain(18.0f)) {
+              ESP_LOGE("aec_probe", "Failed to set ADC gain to 18dB");
+            }
 
 wifi:
   ssid: !secret wifi_ssid
