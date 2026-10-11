@@ -168,3 +168,49 @@ limitations. No new release was created by this cleanup.
 - This delay is not a hardware constant. Buffer configuration, scheduling,
   conversion and signal-processing latency can contribute. Load dependence
   and exact DMA alignment have not been measured.
+
+## First successful echo-suppression device test: log 22
+
+- Owner reports no self-interruption with the fixed 160 ms reference delay
+  (configuration from commit 002c866). Response playback spans approximately
+  11:01:55 through 11:02:19 without subsequent server barge_in in the supplied
+  log. The initial barge_in at 11:01:51 precedes the user's request.
+- At 11:01:56 pre-AEC mic RMS 1195 becomes output RMS 2; at 11:02:08,
+  1129 becomes 16; at 11:02:15, 1810 becomes 95. These are observed window
+  level reductions, not calibrated ERLE measurements.
+- Strong residual envelope-lag estimates mostly cluster near zero (e.g. 4 ms
+  at correlation 0.971, 0 ms at 0.842). Other windows are ambiguous/outlying.
+- This supports reference alignment as a material cause of the previous echo
+  failure. One successful session does not validate all volumes/load conditions.
+- Preserve this firmware as the experimental baseline. Next: deliberate human
+  barge-in during playback, comfortable volume changes, repeated start/stop and
+  reboot. No product release or adaptive alignment claim yet.
+
+## Hardware-reference experiment: owner validation pending
+
+- Final YAML compiled on ESPHome 2026.9.1 / ESP-IDF 5.5.5, with
+  esp_codec_dev 2.0.0-beta5: flash 1,301,287 bytes; static DIRAM 126,847 /
+  341,760 bytes. Generated configuration confirms MIC3 gain channel index 2.
+  Compilation is not physical validation; runtime memory headroom is unmeasured.
+- Log 23 failed deliberate human interruption at maximum volume despite
+  continuous uplink. Mic peaks again reached full scale; see
+  AUDIO_REFERENCE_RESEARCH.md for source comparison and schematic evidence.
+- New independent configuration: firmware/stackchan-hwref.example.yaml.
+  ES7210 codec-dev TDM capture, slots 0/1 provisionally mic/reference, all four
+  slot levels exposed. ADC mic gain 6 dB, MIC3 feedback gain 0 dB. No software
+  reference delay. Existing 160 ms configuration is preserved.
+- Copy the whole YAML into ESPHome; dependencies are pinned remote sources.
+  Retain local Wi-Fi secrets and any installation-specific API/OTA settings.
+  No uploaded headers or local components are required.
+- Capture logs from boot. Verify normal input and intelligible playback first
+  at a comfortable level, then maximum intended level. Stop if audio is
+  distorted; this may indicate bus/slot incompatibility, not an AEC setting.
+- During an active session, speak with playback silent, then request a long
+  response and remain silent for its first seconds. Slot 1 should primarily
+  follow speaker output rather than room speech. Record input/output WAVs and
+  the log, including slot levels, aec_probe and Audio Diagnostics.
+- Say a distinctive interruption phrase during the response. Check preserved
+  words in recorded input, server barge_in, and immediate playback cancellation
+  separately. A quiet processed mic alone is not success.
+- Qualification also requires several audible volumes, volume changes during
+  playback, repeated sessions and reboot. Hardware effectiveness is unverified.

@@ -9,11 +9,15 @@ There is no new tested Pipecat firmware release yet.
 
 ## Full-duplex experiment
 
-Current copy-paste experiment: [AEC signal probe YAML](firmware/stackchan-duplex-probe.example.yaml).
-This is a single file with remote dependencies and an inline processor wrapper.
-It logs mic/reference/output levels around FD AEC and removes compounded output
-attenuation. Both SR and FD owner tests still self-interrupted; this probe is
-diagnostic, not a confirmed echo fix.
+Current copy-paste experiment: [hardware reference YAML](firmware/stackchan-hwref.example.yaml).
+It captures ES7210 feedback with TDM and logs all four slot levels alongside
+mic/reference/output levels. Physical validation is pending; see the
+[source research](docs/AUDIO_REFERENCE_RESEARCH.md) and
+[validation plan](docs/VALIDATION.md#hardware-reference-experiment-owner-validation-pending).
+The separate [160 ms reference-delay probe](firmware/stackchan-duplex-probe.example.yaml)
+suppressed self-interruption in one owner test, but deliberate human interruption
+failed at maximum volume. It remains a limited baseline, not a completed POC.
+Both configurations are single files with remote dependencies.
 
 The immediate milestone is simultaneous capture/playback and echo-controlled
 voice interruption. Start with [raw duplex](firmware/stackchan-duplex.example.yaml),
