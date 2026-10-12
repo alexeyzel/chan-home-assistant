@@ -312,3 +312,26 @@ Build validation:
   for this workaround. A clean local Windows build may encounter it again;
   this does not validate that batch path. Home Assistant Linux builds do not
   use this Windows batch invocation.
+
+## Log 26: first owner-confirmed duplex conversation and interruption (2026-10-12)
+
+- Owner reports a substantial improvement: no observed self-interruption and
+  successful human interruption. This is the first physical proof of concept
+  for the hardware-reference configuration, not a release qualification.
+- Log 26 (19:35:14-19:37:14) shows AW88298 I2SCTRL=0x14E8,
+  clock_ready=YES, master=1.000, speaker_volume=1.000 and muted=NO.
+  Duplex RX/TX runs with i2s_error=NO; microphone uplink continues during replies.
+- Hardware reference now carries playback signal (e.g. RMS 2913 at 19:36:57).
+  In that interval raw mic RMS is 2039 and AEC output RMS is 159. This is
+  evidence of signal attenuation, not a calibrated echo-reduction measurement.
+- Server barge_in events occur during replies; at 19:37:05 the user's stop-like
+  utterance is transcribed and the assistant acknowledges stopping. Logs alone
+  cannot classify every interrupt as intentional or measure audible stop latency.
+- Remaining observations: one WebSocket disconnect at 19:36:12, two downstream
+  underrun warnings, audio-gap warnings, and an 82 ms microphone operation.
+  Their audible effects and causes are not established. No firmware change is
+  made from these warnings alone.
+- Preserve source baseline 5ec1eb8. Before release, repeat at multiple audible
+  volumes and while changing volume, with silent listening and deliberate
+  interruptions, repeated session starts/stops, and a longer conversation.
+  Record distances, interruption success/latency and any audible stutter.
