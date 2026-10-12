@@ -37,7 +37,7 @@ external_components:
 
 esphome:
   min_version: 2026.9.1
-  build_path: stackchan-hwref-fix-build
+  build_path: stackchan-hwref-clock-build
   compile_process_limit: 4
   on_boot:
     - priority: 1000
@@ -164,6 +164,111 @@ esphome:
         - lambda: |-
             id(duplex_speaker).set_volume(1.0f);
             id(duplex_audio).set_master_volume_min_db(-30.0f);
+            // RX is 4x16-bit TDM with half-frame WS. On DOUT this is also
+            // standard stereo I2S with 32-bit slots: left high 16 bits carry
+            // our PCM; all other TX slots are zero. AW88298 must expect 64fs.
+            uint16_t before = 0, cfg = 0, after = 0;
+            if (!id(aw88298_dac).read_byte_16(0x06, &before) ||
+                !id(aw88298_dac).read_byte_16(0x07, &cfg)) {
+              ESP_LOGE("amp_clock", "Cannot read AW88298 format registers");
+              return;
+            }
+            // Require the official 48 kHz, left-channel, Philips I2S setup.
+            // Retain two-slot amplifier mode; four-slot input capture is independent.
+            if ((before & 0x1F0F) != 0x1408 || (cfg & 0x0004) != 0) {
+              ESP_LOGE("amp_clock", "Unexpected format: I2SCTRL=0x%04x I2SCFG1=0x%04x", before, cfg);
+              return;
+            }
+            const uint16_t expected = (before & ~uint16_t(0x00F0)) | 0x00E0;
+            if (!id(aw88298_dac).write_byte_16(0x06, expected) ||
+                !id(aw88298_dac).read_byte_16(0x06, &after) || after != expected) {
+              ESP_LOGE("amp_clock", "AW88298 clock configuration/readback failed");
+              return;
+            }
+            id(amp_clock_ready) = true;
+            ESP_LOGI("amp_clock", "AW88298 I2SCTRL 0x%04x -> 0x%04x; 64 BCLK/frame, 32-bit left slot", before, after);
+        - script.execute: amplifier_diagnostics
+
+globals:
+  - id: amp_clock_ready
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: speaker_test_bytes
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+script:
+  - id: amplifier_diagnostics
+    mode: single
+    then:
+      - lambda: |-
+          const uint8_t registers[] = {0x01, 0x04, 0x05, 0x06, 0x07, 0x0C};
+          for (uint8_t reg : registers) {
+            uint16_t value = 0;
+            if (id(aw88298_dac).read_byte_16(reg, &value))
+              ESP_LOGI("amp_diag", "AW88298 reg[0x%02x]=0x%04x", reg, value);
+            else
+              ESP_LOGE("amp_diag", "AW88298 read failed: reg[0x%02x]", reg);
+          }
+          ESP_LOGI("amp_diag", "clock_ready=%s master=%.3f speaker_volume=%.3f muted=%s",
+            id(amp_clock_ready) ? "YES" : "NO", id(duplex_audio).get_master_volume(),
+            id(duplex_speaker).get_volume(), id(duplex_speaker).get_mute_state() ? "YES" : "NO");
+  - id: speaker_test
+    mode: single
+    then:
+      - va_pipecat.stop: pipecat_va
+      - delay: 300ms
+      - speaker.stop: pipecat_speaker
+      - wait_until:
+          condition:
+            lambda: return id(pipecat_speaker).is_stopped();
+          timeout: 2s
+      - if:
+          condition:
+            lambda: return id(amp_clock_ready) && id(pipecat_speaker).is_stopped();
+          then:
+            - lambda: |-
+                id(speaker_test_bytes) = 0;
+                id(duplex_mic).start();
+                id(duplex_speaker).set_audio_stream_info(esphome::audio::AudioStreamInfo(16, 1, 48000));
+                id(duplex_speaker).start();
+            - wait_until:
+                condition:
+                  lambda: return id(duplex_speaker).is_running() && id(duplex_mic).is_running();
+                timeout: 3s
+            - if:
+                condition:
+                  lambda: return id(duplex_speaker).is_running() && id(duplex_mic).is_running();
+                then:
+                  - logger.log: "Speaker test: 1 kHz at -18 dBFS, current user volume; Pipecat stopped"
+                  - repeat:
+                      count: 100
+                      then:
+                        - lambda: |-
+                            int16_t samples[480];
+                            for (size_t i = 0; i < 480; ++i)
+                              samples[i] = static_cast<int16_t>(4096.0f * sinf(6.28318530718f * (i % 48) / 48.0f));
+                            id(speaker_test_bytes) += id(duplex_speaker).play(
+                              reinterpret_cast<const uint8_t *>(samples), sizeof(samples), 0);
+                        - delay: 10ms
+                  - lambda: |-
+                      ESP_LOGI("speaker_test", "PCM accepted=%u/96000 bytes (queue acceptance, not proof of sound)",
+                        static_cast<unsigned>(id(speaker_test_bytes)));
+                  - script.execute: amplifier_diagnostics
+                  - speaker.finish: duplex_speaker
+                  - delay: 500ms
+                else:
+                  - logger.log:
+                      level: ERROR
+                      format: "Speaker test aborted: audio stack did not start"
+            - lambda: id(duplex_mic).stop();
+            - speaker.stop: duplex_speaker
+          else:
+            - logger.log:
+                level: ERROR
+                format: "Speaker test aborted: amplifier not ready or Pipecat playback did not stop"
 
 wifi:
   ssid: !secret wifi_ssid
@@ -286,10 +391,23 @@ button:
     name: Audio Diagnostics
     on_press:
       - esp_audio_stack.dump_diagnostics: duplex_audio
+      - script.execute: amplifier_diagnostics
+  - platform: template
+    name: Speaker Test
+    on_press:
+      - script.execute: speaker_test
   - platform: template
     name: Pipecat Start
     on_press:
-      - va_pipecat.start: pipecat_va
+      - if:
+          condition:
+            lambda: return id(amp_clock_ready) && !id(speaker_test).is_running();
+          then:
+            - va_pipecat.start: pipecat_va
+          else:
+            - logger.log:
+                level: WARN
+                format: "Start blocked: amplifier not ready or Speaker Test active"
   - platform: template
     name: Pipecat Stop
     on_press:
@@ -321,6 +439,7 @@ interval:
             lambda: return id(duplex_mic).is_running();
           then:
             - esp_audio_stack.dump_diagnostics: duplex_audio
+            - script.execute: amplifier_diagnostics
 
 sensor:
   - platform: esp_audio_stack

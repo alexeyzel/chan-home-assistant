@@ -260,3 +260,55 @@ limitations. No new release was created by this cleanup.
 - Owner retest must confirm `TX externally managed: validated I2S bus`,
   audio-stack startup, actual mic frames and audible output. Hardware reference
   effectiveness and human interruption still require the earlier test plan.
+
+
+## Log 25: capture works, amplifier output absent (2026-10-12)
+
+- The relocated workspace is C:/My Projects/Codex/Chan - Stackchan HA companion;
+  the nested repository remains the project checkout.
+- Owner reports that speech is heard by Pipecat but replies are inaudible.
+  Log 25 starts after boot; it cannot establish actual amplifier register values.
+- At 19:01:00 the user's words are transcribed correctly. Pipecat receives
+  response PCM and drains its playback queue. RX/TX are running, codec backend
+  is open, and there is no I2S error. The log-24 startup correction is effective.
+- During both response windows the reference RMS stays near 1 (peaks 5-6),
+  while room mic signal also remains low. This supports absence of amplifier
+  output but does not by itself identify clock configuration versus mute/power.
+- Source identifies a format mismatch: TDM TX has four 16-bit slots and
+  half-frame WS (64 BCLK/frame, 32 BCLK per WS phase), while the official
+  AW88298 setup selects I2SBCK=00 (32 BCLK/frame). Its I2SFS is already 32 bits.
+  Slot-0 16-bit TX followed by zero slots can be received as 32-bit left-channel
+  standard I2S; the amplifier's clock ratio must match the 64-clock frame.
+- The next YAML changes AW88298 register 0x06 bits 7:4 to 1110 (32-bit data,
+  64fs BCLK), normally 0x14C8 -> 0x14E8. It retains standard two-slot amplifier
+  mode and TDM microphone capture. It checks the inherited format before
+  writing and verifies readback. A failed check blocks Pipecat Start.
+- Added amplifier diagnostics for registers 0x01/04/05/06/07/0C and software
+  volume/mute. No interrupt-status register is read/cleared. Speaker Test stops
+  Pipecat and feeds a one-second 1 kHz PCM tone at -18 dBFS with the current
+  user volume. Mic capture runs during the tone for reference diagnostics.
+  Accepted-byte count is queue acceptance, not proof of audible playback.
+- First owner test: Speaker Test, then Audio Diagnostics, then Pipecat Start
+  and a short question. Provide the log from boot. If output returns, then
+  test deliberate barge-in and changing audible volumes. Physical effectiveness
+  of the clock correction is pending.
+
+Primary evidence:
+- Awinic AW88298 datasheet v1.6, I2SCTRL and I2SCFG1 registers, pages 33-35:
+  https://doc.awinic.com/doc/20230609wm/78b5dc17-223f-4371-9a31-a6640f883a0c.pdf
+- Official BSP driver at the pinned revision:
+  https://github.com/m5stack/esphome-yaml/blob/cc708ddcc9dea7cfc746b408d2495ce281bbf2d2/components/aw88298/aw88298.cpp
+- ESP-IDF 5.5.5 i2s_hal_tdm_set_tx_slot: automatic WS width is half the frame;
+  inactive slots retain the frame width when skip_mask is false.
+
+Build validation:
+- The exact delivered YAML compiled successfully with ESPHome 2026.9.1 and
+  ESP-IDF 5.5.5. Static RAM: 127,631 / 341,760 bytes (37.3%); flash:
+  1,306,819 / 8,126,464 bytes (16.1%). No robot was flashed.
+- On this Windows workspace, the generated sections.ld batch invocation passed
+  its shell error-handling suffix as ldgen arguments. Running the same generated
+  ldgen command directly as an argument list produced sections.ld; rerunning
+  ESPHome compile then succeeded. No application or toolchain source was changed
+  for this workaround. A clean local Windows build may encounter it again;
+  this does not validate that batch path. Home Assistant Linux builds do not
+  use this Windows batch invocation.

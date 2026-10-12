@@ -11,7 +11,9 @@ There is no new tested Pipecat firmware release yet.
 
 Current copy-paste experiment: [hardware reference YAML](firmware/stackchan-hwref.example.yaml).
 It captures ES7210 feedback with TDM and logs all four slot levels alongside
-mic/reference/output levels. Physical validation is pending; see the
+mic/reference/output levels. Capture now works, but the latest owner test had
+inaudible replies. The next YAML corrects amplifier clock configuration and adds
+a local Speaker Test button. Physical validation is pending; see the
 [source research](docs/AUDIO_REFERENCE_RESEARCH.md) and
 [validation plan](docs/VALIDATION.md#hardware-reference-experiment-owner-validation-pending).
 The separate [160 ms reference-delay probe](firmware/stackchan-duplex-probe.example.yaml)
