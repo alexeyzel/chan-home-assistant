@@ -9,13 +9,15 @@ There is no new tested Pipecat firmware release yet.
 
 ## Full-duplex experiment
 
-Current copy-paste experiment: [hardware reference YAML](firmware/stackchan-hwref.example.yaml).
-It captures ES7210 feedback with TDM and logs all four slot levels alongside
-mic/reference/output levels. Capture now works, but the latest owner test had
-inaudible replies. The next YAML corrects amplifier clock configuration and adds
-a local Speaker Test button. Physical validation is pending; see the
-[source research](docs/AUDIO_REFERENCE_RESEARCH.md) and
-[validation plan](docs/VALIDATION.md#hardware-reference-experiment-owner-validation-pending).
+Current copy-paste experiment: [startup recovery and uplink gain YAML](firmware/stackchan-hwref-uplink.example.yaml).
+It adds a bounded retry for a connection lost immediately after Start and 4x
+post-AEC microphone gain, adjustable through the `pipecat_mic_gain` substitution.
+Both changes await owner testing. Gain also amplifies residual echo and noise.
+The [hardware reference baseline](firmware/stackchan-hwref.example.yaml) restored
+audible replies and enabled human interruption in log 26, but log 27 showed that
+interruption remains unreliable at ordinary speaking volume. Preserve it for
+comparison and rollback. See [validation notes](docs/VALIDATION.md) and
+[source research](docs/AUDIO_REFERENCE_RESEARCH.md).
 The separate [160 ms reference-delay probe](firmware/stackchan-duplex-probe.example.yaml)
 suppressed self-interruption in one owner test, but deliberate human interruption
 failed at maximum volume. It remains a limited baseline, not a completed POC.
@@ -50,8 +52,8 @@ Pin both the BSP and external drivers before publishing a new firmware release.
 - Server-side personal prompts and an unknown/guest profile.
 
 Pipecat microphone capture and audible replies were confirmed by the owner.
-Full-duplex audio, echo handling, reliable interruption, tracking,
-and personalization remain unverified. Do not command motion until the reported
+Simultaneous capture/playback and some human interruptions were demonstrated.
+Reliable interruption across volumes, tracking and personalization remain unverified. Do not command motion until the reported
 Y-angle mismatch is resolved.
 
 ## Development and releases

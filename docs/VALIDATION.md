@@ -335,3 +335,48 @@ Build validation:
   volumes and while changing volume, with silent listening and deliberate
   interruptions, repeated session starts/stops, and a longer conversation.
   Record distances, interruption success/latency and any audible stutter.
+
+## Log 27 and recorded input: quiet uplink and lost startup (2026-10-12)
+
+- Owner reports that ordinary speech does not reliably interrupt; louder stop
+  works. Server barge_in occurs at 21:01:05 and 21:01:16, but the returned
+  transcripts do not match the owner's intended stop request. At 21:01:26,
+  stop is transcribed and acknowledged. This qualifies log 26's success:
+  interruption exists but is not consistently usable.
+- At 20:59:55 start_session opens the microphone and sends wake. At 20:59:56,
+  transport write fails and the WebSocket disconnect closes the microphone.
+  At 20:59:57 the connection returns idle. A second start at 21:00:10 opens
+  capture successfully. Source reconnects the transport without retaining the
+  initial start request. The transport failure's underlying cause is unknown.
+- Supplied input WAV: mono PCM16, 16 kHz, 113.312 seconds, absolute peak 3506.
+  Many five-second blocks have RMS 20-40 (-64 to -58 dBFS); these include silence
+  and are not isolated speech loudness measurements. The log also shows low
+  microphone levels before playback. Numerical analysis does not establish
+  intelligibility, exact utterance boundaries, or whether AEC removed syllables.
+- New separate stackchan-hwref-uplink.example.yaml retains the clock-corrected
+  baseline and adds native ESPHome MicrophoneSource gain_factor=4 (+12.04 dB)
+  AFTER AEC, only on the Pipecat uplink. The entire supplied WAV would fit PCM16
+  at that gain (maximum 14024). New speech can still clip; residual echo and
+  noise are amplified too. This is a controlled test, not a verified AEC fix.
+  pipecat_mic_gain=1 restores baseline uplink gain for comparison. aec_probe
+  out levels remain pre-gain; Pipecat uplink max_abs and recording are post-gain.
+- Pipecat Start now waits up to ten seconds for the transport, then observes
+  the first five seconds. If a disconnect occurs there, it waits up to ten
+  seconds for reconnection and retries start once. A 500 ms settling delay
+  is not an explicit server hello acknowledgement. This bounded workaround
+  does not provide general session recovery or fix the transport failure.
+  Stop, Speaker Test and AEC-mode controls cancel any pending retry.
+- Owner test: after idling, press Start once and verify a conversation begins;
+  repeat Stop/Start, and check that Stop while waiting never reopens capture.
+  During a long reply say the same polite stop request at ordinary loudness.
+  Compare gain 4 with gain 1 at the same distance and speaker volume; include
+  silence during replies to detect renewed self-interruption. Provide log and
+  Pipecat input recording. Keep the earlier YAML for rollback.
+
+Build result for the new uplink test:
+- ESPHome configuration validation and full compilation passed (2026.9.1,
+  ESP-IDF 5.5.5). Static RAM 128,207 / 341,760 bytes; image 1,308,331 bytes.
+- Used a distinct build directory after Windows failed to clean the prior cache.
+  The sections.ld Windows batch suffix issue recurred; direct invocation of the
+  unchanged generated ldgen command, as documented above, completed generation.
+  The subsequent exact-YAML compile succeeded. No hardware flashing was done.
