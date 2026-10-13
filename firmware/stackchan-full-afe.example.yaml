@@ -386,6 +386,9 @@ sensor:
         update_interval: 1s
 
 esp32:
+  variant: esp32s3
+  flash_size: 16MB
   framework:
+    type: esp-idf
     components:
       - espressif/esp-sr==2.5.5

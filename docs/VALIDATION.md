@@ -399,3 +399,9 @@ Build result for the new uplink test:
   the subsequent exact delivered YAML build passed, including AFE diagnostics.
 - No robot was flashed. Speech preservation, channel-2 acoustic capture,
   echo suppression across volumes and reliable barge-in remain pending.
+
+- USB browser installer later reported an ESP32-C6 expectation. esptool
+  image-info independently identifies the compiled full-AFE OTA image as
+  ESP32-S3, chip ID 9, 16 MB flash, valid checksum/hash. The delivered YAML
+  now declares variant esp32s3 explicitly instead of inheriting it from BSP.
+  This does not establish why the browser expected C6.
