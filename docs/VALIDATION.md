@@ -405,3 +405,27 @@ Build result for the new uplink test:
   ESP32-S3, chip ID 9, 16 MB flash, valid checksum/hash. The delivered YAML
   now declares variant esp32s3 explicitly instead of inheriting it from BSP.
   This does not establish why the browser expected C6.
+
+
+## Full AFE performance-profile test (2026-10-13)
+
+- Log 31 shows sustained AFE input drops and output misses. The supplied input
+  WAV contains 523 entirely zero 256-sample blocks out of 874 (59.84%).
+  This establishes an audio delivery deficit, not its underlying cause.
+- Added stackchan-afe-perf.example.yaml with the pinned donor's compiler,
+  cache and PSRAM execution/allocation settings. CPU is explicitly 240 MHz;
+  the previous effective CPU frequency was already 240 MHz.
+- Compared YAML structurally: esp_afe, esp_audio_stack and va_pipecat remain
+  unchanged. New SDK options and compiler profile match the pinned donor.
+  Generated effective sdkconfig confirms the requested performance settings.
+- ESPHome 2026.9.1 configuration validation and full compilation passed with
+  ESP-IDF 5.5.5. Static RAM: 170,863 / 341,760 bytes (50.0%). Flash image:
+  1,983,171 / 8,126,464 bytes (24.4%).
+- The previously documented Windows sections.ld batch suffix issue recurred;
+  directly executing the unchanged generated ldgen arguments and rerunning
+  the exact YAML compile succeeded. No source/toolchain patch was required.
+- esptool image-info identifies the factory image as ESP32-S3, chip ID 9,
+  16 MB flash, with valid bootloader checksum/hash.
+- No hardware flashing was performed. Whether this profile resolves the
+  sustained deficit, restores replies and preserves barge-in remains untested.
+  Collect Audio Diagnostics, a full session log and Pipecat input recording.

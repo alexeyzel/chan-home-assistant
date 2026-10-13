@@ -55,3 +55,38 @@ Inspect runtime AFE configuration, both mic-slot levels, hardware reference,
 feed/fetch drops/timeouts, and Pipecat connection status. A disconnect invalidates
 that segment as a test of speech understanding. Use the previous YAML to roll
 back. No robot is flashed automatically.
+
+## Log 31: performance-profile correction
+
+The first full-AFE port copied the processing graph but omitted the donor's
+performance/cache/PSRAM build settings. That omission is now corrected in the
+separate firmware/stackchan-afe-perf.example.yaml. It is a candidate correction
+for the observed throughput deficit, not a hardware-confirmed root cause.
+
+Log 31 shows saturated input queues, repeated input drops and missing output
+frames. The input WAV contains 523 entirely zero 256-sample frames out of 874
+(59.84%). The server connects to Gemini and receives those frames; after seven
+seconds without server speech detection the client closes capture. Increasing
+queue capacity would hide a sustained throughput deficit rather than resolve it.
+
+Differences from the first full-AFE build:
+
+- PERF compiler optimization (previously SIZE).
+- 64 KB data cache with 64-byte lines (previously 32 KB / 32 bytes).
+- 32 KB instruction cache (previously 16 KB).
+- Instruction fetch and read-only data in PSRAM enabled.
+- Donor PSRAM allocation policy: prefer PSRAM for ordinary allocations over
+  1024 bytes, with 32768 bytes reserved for internal allocations.
+- Explicit 240 MHz CPU (already 240 MHz before; not an overclock or speed change).
+
+AFE graph, gains, task priorities, queue sizes, codec configuration and Pipecat
+component are unchanged. The exact options were checked against donor revision
+c86ecd3c5124db85181c03ad35aec6578b82b849. The compilation's effective sdkconfig
+must also contain these settings; YAML validation alone is insufficient.
+
+Retest: press Audio Diagnostics, start and speak normally for five seconds;
+repeat three times, retaining the complete log and input WAV. After startup,
+input drops should stop and missing output should no longer dominate frames.
+At 256-sample process / 1024-sample feed geometry, a 128-process-frame window
+requires about 32 feed blocks; log 31 managed only 12-14 while dropping 18-20.
+Do not judge this correction only by whether Gemini produces an answer.

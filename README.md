@@ -9,8 +9,10 @@ There is no new tested Pipecat firmware release yet.
 
 ## Full-duplex experiment
 
-New comparison: [full AFE YAML](firmware/stackchan-full-afe.example.yaml), adapting
-the Waveshare SR/MMR speech processing graph to StackChan. See the
+Current AFE test: [performance-profile YAML](firmware/stackchan-afe-perf.example.yaml), adapting
+the Waveshare SR/MMR graph and its compiler/cache/PSRAM performance profile to StackChan.
+The first [full AFE YAML](firmware/stackchan-full-afe.example.yaml) suffered sustained
+input drops and missing output in log 31; keep it only for comparison. See the
 [port notes and test procedure](docs/AFE_PORT.md). Hardware testing is pending.
 
 Current copy-paste experiment: [startup recovery and uplink gain YAML](firmware/stackchan-hwref-uplink.example.yaml).
