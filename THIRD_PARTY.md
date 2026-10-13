@@ -38,3 +38,12 @@ The upstream [Audio Stack](LICENSES/esphome-audio-stack-MIT.txt) and
 Earlier tags retain their original notices, including the removed ha-gemini-live
 patch. That patch/backend are no longer in the current tree.
 No binary firmware, third-party artwork, or audio is bundled.
+
+## Full AFE reference configuration
+
+The full-AFE example adapts the SR/MMR/AEC/SE/post-AGC graph from
+[jyoushiki Waveshare Audio VA](https://github.com/jyoushiki/esphome-waveshare-esp32-s3-audio-va),
+revision c86ecd3c5124db85181c03ad35aec6578b82b849.
+Copyright (c) 2026 Michal Zaniewicz and Juan Marcos Torero.
+The [upstream MIT license](LICENSES/waveshare-audio-va-MIT.txt) is retained.
+Board-specific pin, gain and output-codec settings are not copied.

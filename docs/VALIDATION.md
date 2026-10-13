@@ -380,3 +380,22 @@ Build result for the new uplink test:
   The sections.ld Windows batch suffix issue recurred; direct invocation of the
   unchanged generated ldgen command, as documented above, completed generation.
   The subsequent exact-YAML compile succeeded. No hardware flashing was done.
+
+## Full AFE reference port (2026-10-13)
+
+- Added stackchan-full-afe.example.yaml, preserving the earlier experiments.
+  See AFE_PORT.md for pinned donor provenance, reused settings, adaptation and
+  device acceptance procedure. No transport repair is claimed.
+- Verified AFE settings against donor c86ecd3c5124db85181c03ad35aec6578b82b849:
+  every donor esp_afe field except its id matches. Explicit post-AGC support
+  is additionally enabled. Slot selection is 0/2 with reference 1, and the
+  old AecProbe wrapper is absent; AFE owns its asynchronous processing path.
+- ESPHome 2026.9.1 configuration validation and final full compile passed,
+  using ESP-IDF 5.5.5 and ESP-SR 2.5.5. RAM: 150,399 / 341,760 bytes (44.0%);
+  flash image: 1,843,035 / 8,126,464 bytes (22.7%). Dynamic AFE allocations
+  and runtime scheduling still need hardware validation.
+- The previously documented Windows sections.ld batch invocation problem
+  recurred. Direct invocation of the generated ldgen arguments succeeded;
+  the subsequent exact delivered YAML build passed, including AFE diagnostics.
+- No robot was flashed. Speech preservation, channel-2 acoustic capture,
+  echo suppression across volumes and reliable barge-in remain pending.
