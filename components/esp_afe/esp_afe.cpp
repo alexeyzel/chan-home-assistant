@@ -1519,6 +1519,9 @@ bool EspAfe::process(const int16_t *in_mic, const int16_t *in_ref, int16_t *out,
     silence_frame(out, os);
   }
 
+  // Input is already downsampled; asynchronous output has AFE delay.
+  if (qs == os) this->capture.append(in_mic, in_ref, out, os, transport_mic_channels, processed);
+
   // Release drain guard BEFORE emitting telemetry / counters: those touch
   // only atomics on this and can safely race with a rebuild.
   this->clear_process_busy_();

@@ -2,6 +2,7 @@
 
 #include "esphome/core/automation.h"
 #include "chan_diagnostics.h"
+#include "chan_capture.h"
 #include "esphome/core/component.h"
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -110,6 +111,7 @@ using esp_audio_stack::ProcessorTelemetry;
 class EspAfe final : public Component, public AudioProcessor {
  public:
   ChanDiagnostics chan_diag_;
+  ChanCapture capture;
   void setup() override;
   void dump_config() override;
   void dump_runtime_diagnostics();

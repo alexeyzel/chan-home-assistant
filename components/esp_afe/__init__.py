@@ -3,7 +3,7 @@ from pathlib import Path
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import psram
-from esphome.components.esp32 import add_idf_component
+from esphome.components.esp32 import add_idf_component, include_builtin_idf_component
 import esphome.config_validation as cv
 import esphome.final_validate as fv
 from esphome.const import CONF_ID, CONF_MODE, CONF_TYPE, Framework
@@ -247,6 +247,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate_post_agc
 
 
 async def to_code(config):
+    include_builtin_idf_component("esp_http_server")
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
