@@ -37,7 +37,7 @@ class ChanCapture {
     if (authorization.empty()) { ESP_LOGE("chan_capture","Set capture_password (12-64 characters) first"); return false; }
     httpd_config_t cfg=HTTPD_DEFAULT_CONFIG();
     cfg.server_port=8088; cfg.ctrl_port=32778; cfg.stack_size=6144;
-    cfg.max_uri_handlers=6; cfg.lru_purge_enable=true;
+    cfg.max_uri_handlers=6; cfg.max_open_sockets=2; cfg.lru_purge_enable=true;
     if (httpd_start(&server,&cfg)!=ESP_OK) return false;
     const char *paths[]={"/mic0.wav","/mic2.wav","/reference.wav","/processed.wav","/stimulus.wav"};
     for(auto path:paths) {
@@ -57,7 +57,7 @@ class ChanCapture {
       ESP_LOGE("chan_capture","Allocation/auth/server failed; test cancelled"); guard.clear(); return false;
     }
     recording_enabled=enabled; frames=0; missing=0; copy_max_us=0; skipped=0; state=RECORDING;
-    guard.clear(); ESP_LOGI("chan_capture","Recording 8s: mic0/mic2/reference/processed, 16kHz"); return true;
+    guard.clear(); ESP_LOGI("chan_capture","Local 8s test: capture=%s, 16kHz", enabled ? "ON" : "OFF"); return true;
   }
   void append(const int16_t *mic,const int16_t *ref,const int16_t *out,size_t n,int channels,bool valid) {
     if(state!=RECORDING || !recording_enabled) return;
@@ -90,6 +90,10 @@ class ChanCapture {
   }
   bool has_stimulus() const { return stimulus_frames!=0; }
   int16_t playback_sample(size_t i) const { return i<stimulus_frames?stimulus[i]:0; }
+  static esp_err_t busy(httpd_req_t *req) {
+    httpd_resp_set_status(req,"503 Service Unavailable");
+    return httpd_resp_send(req,"Busy or no completed recording",HTTPD_RESP_USE_STRLEN);
+  }
   static esp_err_t serve(httpd_req_t *req) {
     auto *self=static_cast<ChanCapture *>(req->user_ctx);
     char auth[160]{};
@@ -99,8 +103,8 @@ class ChanCapture {
       httpd_resp_set_hdr(req,"WWW-Authenticate","Basic realm=\"StackChan diagnostics\"");
       return httpd_resp_send(req,"Authentication required",HTTPD_RESP_USE_STRLEN);
     }
-    if(self->guard.test_and_set()) return httpd_resp_send_err(req,HTTPD_503_SERVICE_UNAVAILABLE,"Busy");
-    if(self->state!=READY) { self->guard.clear(); return httpd_resp_send_err(req,HTTPD_503_SERVICE_UNAVAILABLE,"Complete a recording first"); }
+    if(self->guard.test_and_set()) return busy(req);
+    if(self->state!=READY) { self->guard.clear(); return busy(req); }
     self->state=DOWNLOADING; self->guard.clear();
     int channel=0;
     if(!strcmp(req->uri,"/mic2.wav")) channel=1;
