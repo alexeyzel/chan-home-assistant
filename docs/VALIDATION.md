@@ -484,3 +484,37 @@ Build result for the new uplink test:
   generated ldgen arguments; subsequent exact-YAML compile passed unchanged.
 - esptool verifies ESP32-S3 application image, chip ID 9, 16 MB, valid checksum
   and hash. Config hash 0x897de171. No hardware flashing performed.
+
+
+## Local audio lab (2026-10-17)
+
+- Owner explicitly approved password-protected HTTP WAV downloads on the
+  trusted LAN after automatic review rejected an unauthenticated server.
+  All download routes now require Basic authentication; unchanged placeholder
+  credentials prevent server startup. No real credentials committed.
+- Added bounded 8-second four-channel capture inside AFE process, after input
+  conversion and after output processing. Input/output acoustic alignment is
+  delayed by AFE, not sample-synchronous. PCM format follows the existing
+  interleaved microphone input layout verified in audio_pipeline.cpp.
+- Added quiet, local speech playback/capture and local playback/no-copy tests.
+  The quiet post-AFE recording supplies the playback stimulus. No voice client
+  or external audio URL is used. AFE and bus blocks match the balanced YAML.
+- Added ESPHome runtime_stats to identify component-loop time, alongside the
+  existing FreeRTOS task metrics. Source review confirms it also reports main
+  loop overhead. Profiling and capture overhead must be measured on hardware.
+- Source review: fixed PSRAM allocation, bounded frame copy, no allocation or
+  network sends in audio callback; download excludes capture-buffer mutation;
+  recording/full buffer stays unavailable until test completion. WAV headers
+  encode mono PCM16/16 kHz, and each route deinterleaves the selected channel.
+- ESPHome configuration/code generation passed. Structural checks confirm no
+  va_pipecat block, unchanged AFE/bus, four Lab buttons and pinned dependencies.
+- Authentication over HTTP is LAN-only usage by agreement, not encryption.
+  Downloads, waveform fidelity, local playback and timing need physical tests.
+
+- Exact local-lab YAML full compile passed: ESPHome 2026.9.1 / ESP-IDF 5.5.5.
+  Static RAM 172,451 / 341,760 bytes; image 1,851,067 / 8,126,464 bytes.
+  Capture/stimulus PSRAM buffers are allocated at runtime, not included in static RAM.
+- Known Windows sections.ld batch suffix issue required direct execution of
+  the generated ldgen arguments; subsequent exact-YAML compile passed unchanged.
+- esptool verifies ESP32-S3, chip ID 9, 16 MB, valid checksum and hash.
+  Config hash 0x1b3c682f. No hardware flashing or acoustic validation performed.

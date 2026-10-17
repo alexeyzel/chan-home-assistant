@@ -89,3 +89,9 @@ AFE callback timing measurements while preserving the afe-perf audio settings.
 [Core-balance test YAML](firmware/stackchan-afe-balanced.example.yaml) moves only
 the audio bus task to core 1 based on log 33; profiling and audio settings remain.
 See [test criteria](docs/AFE_PROFILING.md#core-balance-follow-up-log-33).
+
+### Isolated audio lab
+
+[Local lab YAML](firmware/stackchan-audio-lab.example.yaml) captures pre/post-AFE
+audio without Pipecat. Set its capture password first.
+[Recording/download procedure](docs/AUDIO_LAB.md). Hardware validation pending.
