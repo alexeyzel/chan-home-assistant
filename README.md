@@ -79,3 +79,9 @@ uninstall anything already installed in Home Assistant.
 
 Original material: [MIT](LICENSE).
 External software retains its own licenses; see [THIRD_PARTY.md](THIRD_PARTY.md).
+
+### AFE runtime diagnostic test
+
+[Copy-paste YAML](firmware/stackchan-afe-profile.example.yaml) adds task CPU and
+AFE callback timing measurements while preserving the afe-perf audio settings.
+[Procedure and interpretation](docs/AFE_PROFILING.md). Hardware results pending.

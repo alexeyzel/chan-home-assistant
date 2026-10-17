@@ -429,3 +429,30 @@ Build result for the new uplink test:
 - No hardware flashing was performed. Whether this profile resolves the
   sustained deficit, restores replies and preserves barge-in remains untested.
   Collect Audio Diagnostics, a full session log and Pipecat input recording.
+
+
+## AFE timing and CPU diagnostic test (2026-10-17)
+
+- Owner log 32 confirms remaining missing processed frames and input drops.
+  Supplied input WAV has 678 all-zero 256-sample blocks out of 3993 (16.98%).
+  This is not proof of CPU saturation or a specific cause of incorrect text.
+- Added stackchan-afe-profile.example.yaml and a pinned diagnostic esp_afe fork.
+  Structural comparison verifies unchanged esp_afe, esp_audio_stack, va_pipecat,
+  microphone, speaker, script and button blocks relative to afe-perf.
+- Source review confirms the original feed_us timing covers memcpy, not ESP-SR
+  feed processing. Added queue-read wait, outside-reader wall time, output
+  callback cadence and per-task CPU runtime deltas. See AFE_PROFILING.md for
+  interpretation, profiling overhead and the owner test protocol.
+- Effective generated sdkconfig confirms performance optimization plus
+  FreeRTOS trace, runtime statistics and ESP timer runtime clock are enabled.
+- Physical results and resource reserve for future display/motor/camera work
+  remain unverified. No robot flashing was performed.
+
+- Final exact-YAML compilation passed with ESPHome 2026.9.1 / ESP-IDF 5.5.5.
+  Static RAM: 172,423 / 341,760 bytes (50.5%); flash: 1,987,299 / 8,126,464
+  bytes (24.5%). This does not measure runtime CPU or dynamic allocations.
+- The known Windows sections.ld batch suffix failure recurred. Direct invocation
+  of the generated ldgen arguments succeeded; the subsequent full ESPHome
+  compile passed without changing source or delivered YAML.
+- esptool confirms the application OTA image is ESP32-S3, chip ID 9, 16 MB flash,
+  with valid checksum/hash. Config hash: 0x0dfe9d1e.
