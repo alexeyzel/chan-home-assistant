@@ -456,3 +456,31 @@ Build result for the new uplink test:
   compile passed without changing source or delivered YAML.
 - esptool confirms the application OTA image is ESP32-S3, chip ID 9, 16 MB flash,
   with valid checksum/hash. Config hash: 0x0dfe9d1e.
+
+
+## Core-balance candidate (2026-10-17, log 33)
+
+- Owner reports normal-voice interruption still failed. Log eventually records
+  barge_in at 13:12:44 and recognizes "stop" at 13:12:45; this does not establish
+  how many earlier attempts were missed. Supplied Input WAV: 555 all-zero
+  256-sample blocks of 3298 (16.83%), mono PCM16 / 16 kHz, 52.768 seconds.
+- Sustained reply intervals: IDLE0=0%, IDLE1=55-56.5%, afe_feed=74.5-74.6% of
+  one CPU, audio_stack=17.3-17.4%. Reader-external wall time averages 81-82 ms
+  versus 64 ms input budget, queue read waits average 29-33 us. Input drops
+  and output misses persist. This supports contention on core 0, not complete
+  exhaustion of both cores. CPU demand may rise when throughput recovers.
+- New stackchan-afe-balanced.example.yaml moves only audio_stack from default
+  core 0 to core 1. Priority remains 19; AFE stays on its previous cores and
+  all gains/processing/transport/diagnostics remain identical. New build path
+  avoids a Windows PermissionError during cleanup of the prior build cache.
+- Structural comparison confirms the only runtime YAML difference is task_core.
+  Hardware acceptance and normal-voice interruption are pending. See
+  AFE_PROFILING.md for the comparison protocol and acceptance criteria.
+
+- Exact balanced YAML full compile passed: ESPHome 2026.9.1 / ESP-IDF 5.5.5.
+  Static RAM 172,423 / 341,760 bytes; image 1,987,291 / 8,126,464 bytes.
+  Generated source confirms duplex_audio->set_task_core(1) and AFE feed core 0.
+- Known Windows sections.ld batch suffix issue required direct execution of
+  generated ldgen arguments; subsequent exact-YAML compile passed unchanged.
+- esptool verifies ESP32-S3 application image, chip ID 9, 16 MB, valid checksum
+  and hash. Config hash 0x897de171. No hardware flashing performed.

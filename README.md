@@ -85,3 +85,7 @@ External software retains its own licenses; see [THIRD_PARTY.md](THIRD_PARTY.md)
 [Copy-paste YAML](firmware/stackchan-afe-profile.example.yaml) adds task CPU and
 AFE callback timing measurements while preserving the afe-perf audio settings.
 [Procedure and interpretation](docs/AFE_PROFILING.md). Hardware results pending.
+
+[Core-balance test YAML](firmware/stackchan-afe-balanced.example.yaml) moves only
+the audio bus task to core 1 based on log 33; profiling and audio settings remain.
+See [test criteria](docs/AFE_PROFILING.md#core-balance-follow-up-log-33).

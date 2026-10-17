@@ -62,3 +62,31 @@ Interpretation: saturated relevant core plus high AFE task runtime supports a
 compute-budget issue; substantial idle plus long feed intervals requires checking
 blocking/scheduling/buffer exchange. These are hypotheses to refine, not automatic
 proofs. A later controlled SE-off test is justified only after these measurements.
+
+
+## Core-balance follow-up (log 33)
+
+`firmware/stackchan-afe-balanced.example.yaml` makes exactly one functional
+change from the profiling configuration: esp_audio_stack.task_core=1 instead of
+its default 0. Priority remains 19. AFE feed remains on core 0; AFE graph, gains,
+queues, transport and profiling are identical. A separate local build directory avoids Windows cache cleanup permission errors.
+
+During sustained reply playback in log 33, IDLE0 was 0%, IDLE1 55-56.5%,
+afe_feed consumed 74.5-74.6% of one core and audio_stack 17.3-17.4%.
+Outside-reader wall time averaged 81-82 ms against a 64 ms input-block budget,
+while queue reads took only 29-33 us on average. This supports a scheduling and
+per-core CPU budget problem. The core-1 reserve is measured under the degraded
+throughput; it is not a guarantee of spare capacity once all audio is processed.
+
+Moving the higher-priority bus task should make more core-0 time available to
+AFE. It may add contention to core-1 fetch/playback tasks; this is why the full
+profiling remains enabled. It is a candidate fix, not hardware-validated success.
+No priority increase, microphone gain change or SE removal is included.
+
+Use the same idle/listening/story/interruption/stop procedure above at the same
+volume and distance. Check diagnostics reports audio task core=1. Acceptance:
+steady-state input drops should stop, output misses should stop after startup,
+throughput should reach 32 feed blocks per 128 process frames, playback must
+remain continuous, and normal-voice interruption must work without self-trigger.
+If these fail, compare both core idle counters and task runtime before another
+change. Do not infer success from compilation or merely reduced drop counts.
