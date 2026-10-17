@@ -27,7 +27,7 @@ Gemini Live is a Google service subject to its service terms.
 [ESPHome Audio Stack](https://github.com/n-IA-hane/esphome-audio-stack), MIT,
 is fetched at `0482d741a938378ef948e3b8f3dd31536f9f2cc9` by the experimental
 configurations. Its sources and optional Espressif AEC dependencies retain their
-upstream notices/licenses. No component implementation is copied into this repo.
+upstream notices/licenses. The audio-stack and diagnostic AFE components are vendored with their MIT notice.
 Experimental Pipecat revision: `a538d1d1bacc8609061719f0b05c1622147ccb4b`.
 Experimental M5Stack BSP/driver revision: `cc708ddcc9dea7cfc746b408d2495ce281bbf2d2`.
 The upstream [Audio Stack](LICENSES/esphome-audio-stack-MIT.txt) and
@@ -47,3 +47,10 @@ revision c86ecd3c5124db85181c03ad35aec6578b82b849.
 Copyright (c) 2026 Michal Zaniewicz and Juan Marcos Torero.
 The [upstream MIT license](LICENSES/waveshare-audio-va-MIT.txt) is retained.
 Board-specific pin, gain and output-codec settings are not copied.
+
+## Diagnostic AFE fork
+
+`components/esp_afe` copies revision 0482d741a938378ef948e3b8f3dd31536f9f2cc9
+of ESPHome Audio Stack. Local changes add callback wall-time and FreeRTOS task
+runtime diagnostics; audio graph and GMF dependency remain unchanged.
+The MIT notice is in LICENSES/esphome-audio-stack-MIT.txt.
