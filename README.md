@@ -7,6 +7,13 @@ robot. Half-duplex Gemini Live conversation was confirmed by the owner through t
 [Pipecat Assist add-on](https://github.com/kyvaith/pipecat-homeassistant).
 There is no new tested Pipecat firmware release yet.
 
+## Current diagnostic test
+
+[Local audio lab v2 YAML](firmware/stackchan-audio-lab-v2.example.yaml) compares
+36 dB ES7210 microphone gain with the earlier 6 dB test and logs ADC registers
+and native/captured PCM levels. Run quiet Lab 1 first. See the
+[gain audit and test instructions](docs/ES7210_GAIN_AUDIT.md). Hardware validation pending.
+
 ## Full-duplex experiment
 
 Current AFE test: [performance-profile YAML](firmware/stackchan-afe-perf.example.yaml), adapting

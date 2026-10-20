@@ -518,3 +518,22 @@ Build result for the new uplink test:
   the generated ldgen arguments; subsequent exact-YAML compile passed unchanged.
 - esptool verifies ESP32-S3, chip ID 9, 16 MB, valid checksum and hash.
   Config hash 0x1b3c682f. No hardware flashing or acoustic validation performed.
+
+
+## Local audio lab v2 (2026-10-20)
+
+- Compared exact official BSP, stock codec, Dravix and Waveshare source snapshots;
+  see ES7210_GAIN_AUDIT.md. Our 6 dB was 30 dB below official StackChan BSP.
+- New standalone YAML sets microphones to 36 dB, preserves reference at 0 dB,
+  AFE settings, PCM format, driver pins and all remote dependency pins.
+- Added read-only ADC register diagnostics after codec startup, native slot RMS
+  logging and captured PCM peak/RMS/near-clipping summaries after recording.
+  Manual Stop explicitly reports early termination and retains partial quiet stimulus.
+- YAML structure checked; generated C++ confirms configure_es7210_codec(0x40,
+  0x07, 36.0f, true, 2, 0.0f). No Pipecat component or new local includes.
+- Full exact-YAML compile passed with ESPHome 2026.9.1 and ESP-IDF 5.5.5.
+  Static RAM 172755/341760; image 1855803/8126464; config hash 0xd13075fe.
+  Separate v2 build directory avoids Windows cleanup permission error. Known
+  ldgen batch suffix issue required direct execution of generated ldgen args.
+- esptool: ESP32-S3 chip ID 9, 16MB, checksum/hash valid. No device flashing.
+  Hardware gain readback, speech quality, clipping and AEC performance remain untested.
