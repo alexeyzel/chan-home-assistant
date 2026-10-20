@@ -537,3 +537,26 @@ Build result for the new uplink test:
   ldgen batch suffix issue required direct execution of generated ldgen args.
 - esptool: ESP32-S3 chip ID 9, 16MB, checksum/hash valid. No device flashing.
   Hardware gain readback, speech quality, clipping and AEC performance remain untested.
+
+
+## Native 16 kHz candidates (2026-10-20)
+
+- Owner requested immediate removal of input 48->16 conversion; both new lab
+  and Pipecat YAMLs use native 16000 Hz shared RX/TX and 36 dB microphone gain.
+- Matched AW88298 driver rate with an explicit package !extend override. Source
+  table maps 16 kHz to code 3; boot guard expects 0x1403 before 64fs patch,
+  yielding 0x14e3. Slot layout, physical pins and reference gain stay unchanged.
+- Lab stimulus uses direct 16000 PCM instead of 3x repetition. Live output
+  resampler targets 16000 for va_pipecat's 24000 PCM. Native microphone transport
+  and AFE remain 16000. Built-in resampler enables prefiltering for downsampling.
+- Configuration and generated C++ verified for both: DAC/bus/output rate=16000,
+  ES7210 gains 36/0; live target resampler=16000. All remote dependencies pinned.
+- Hardware validation remains pending, including clock readback, quiet speech,
+  playback/reference levels, clipping and interruption. See NATIVE_16K.md.
+
+- Both exact YAMLs fully compiled with ESPHome 2026.9.1 / ESP-IDF 5.5.5.
+  Local lab: static RAM 172755/341760, image 1855819/8126464, config 0xbb9d1bac.
+  Pipecat: static RAM 172423/341760, image 1988663/8126464, config 0x6592f216.
+- Both images verified by esptool as ESP32-S3 (chip ID 9), valid checksum/hash.
+  Windows ldgen suffix workaround applied to both generated build commands;
+  subsequent unchanged-YAML compilation succeeded. No flashing performed.

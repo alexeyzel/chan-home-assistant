@@ -9,6 +9,13 @@ There is no new tested Pipecat firmware release yet.
 
 ## Current diagnostic test
 
+New native 16 kHz candidates: [local WAV lab](firmware/stackchan-audio-lab-16k.example.yaml)
+and [Pipecat conversation](firmware/stackchan-pipecat-16k.example.yaml).
+Microphone input no longer needs 48->16 conversion; Pipecat output uses 24->16.
+Start with Lab 1; see [protocol and implementation notes](docs/NATIVE_16K.md).
+Hardware validation pending.
+
+
 [Local audio lab v2 YAML](firmware/stackchan-audio-lab-v2.example.yaml) compares
 36 dB ES7210 microphone gain with the earlier 6 dB test and logs ADC registers
 and native/captured PCM levels. Run quiet Lab 1 first. See the
