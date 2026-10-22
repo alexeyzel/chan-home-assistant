@@ -588,3 +588,22 @@ Build result for the new uplink test:
   generated ldgen arguments directly and recompiling unchanged YAMLs succeeded.
 - esptool verified both images: ESP32-S3 chip ID 9, 16 MB, valid checksum/hash.
   No flashing performed. Native-16k hardware behavior remains unverified.
+
+## Owner native-16k Lab 1/2 and buffered candidate (2026-10-22)
+
+- Log 39: 128000 samples/channel, no missing blocks or clipping, native16k
+  amplifier readback 0x14e3, ADC microphone gain nibble13 (36dB), reference0.
+  Quiet raw RMS -26.88/-26.62 dBFS; processed -18.14, peak -1.80 dBFS.
+- Log 40: mic0 clipped22.58%, mic2 clipped20.96%; reference peak -12.79dBFS.
+  Processed RMS -10.81dBFS is not an echo-reduction score (AGC/nonlinear input).
+  Mid-playback short-frame counts87-94/128; 8s PCM queued over about10s.
+  AFE feed task consumed85% of one core in a window overlapping playback.
+- Added buffered native16k lab; design, upstream source comparison, test limits
+  and test instructions in BUFFERED_AUDIO_LAB.md. Hardware validation pending.
+- Final buffered YAML full compile passed: ESPHome2026.10.0 / ESP-IDF5.5.6,
+  config0xadeb4280, static RAM172587/341760, image1855715/8126464 bytes.
+  Generated C++ confirms ADC18/reference0, speaker ring500ms, normalization and
+  time/completion guards. ESP32-S3 chip9, flash16MB, valid checksum/hash.
+- New build path avoids Windows cleanup permissions. Known local ldgen command
+  suffix required direct invocation of its generated arguments before rebuilding.
+  No device flashing. Acoustic timing, clipping and AEC remain hardware tests.
