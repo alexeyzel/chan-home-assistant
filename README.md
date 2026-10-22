@@ -1,5 +1,21 @@
 # Chan for Home Assistant
 
+> **Development status: experimental / work in progress.**
+> This project is being developed with **OpenAI Codex**, with hardware testing
+> performed by the owner. It is not a stable or production-ready firmware.
+> Historical releases have been withdrawn from publication; a new release will
+> be published only after a working version is validated on the robot.
+
+Active development is on [codex/full-duplex-poc](https://github.com/alexeyzel/chan-home-assistant/tree/codex/full-duplex-poc).
+See the [current project state](https://github.com/alexeyzel/chan-home-assistant/blob/codex/full-duplex-poc/docs/CURRENT_STATE.md)
+and [experiment history](https://github.com/alexeyzel/chan-home-assistant/blob/codex/full-duplex-poc/docs/EXPERIMENT_HISTORY.md)
+for the latest tests, known failures and next steps.
+
+## Earlier main-branch baseline snapshot
+
+The material below describes the earlier baseline retained on main. Use the
+working branch's current-state document for present development status.
+
 ESPHome project for the official M5Stack StackChan AI Desktop Robot.
 
 This repository is being rebuilt from a hardware baseline tested on the owner's
