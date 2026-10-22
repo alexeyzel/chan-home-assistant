@@ -489,4 +489,3 @@ esp32:
 
 runtime_stats:
   log_interval: 10s
-
