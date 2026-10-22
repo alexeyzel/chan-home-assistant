@@ -1,5 +1,7 @@
 # Stock audio comparison, 2026-10-11
 
+> Status note (2026-10-22): Historical source research retained for provenance. Clock-corrected hardware reference later produced partial success (log26); it is not fully qualified. See CURRENT_STATE.md for current test status.
+
 Stock source inspected: m5stack/StackChan commit
 1b5765599fba8aaad1811d9a79358ccc7051f5f3. This is public source, not a verified
 match to the owner's previously installed factory binary.

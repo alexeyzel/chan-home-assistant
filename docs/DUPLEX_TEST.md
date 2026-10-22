@@ -1,5 +1,7 @@
 # Experimental duplex firmware: device test
 
+> Status note (2026-10-22): Historical raw/standalone-AEC experiments; self-interruption persisted. Do not restart this sequence as the next action. Read CURRENT_STATE.md.
+
 ## Current inline signal probe
 
 Current controlled experiment delays the AEC reference by 2560 samples (160 ms

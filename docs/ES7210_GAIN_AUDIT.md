@@ -1,5 +1,7 @@
 # ES7210 gain audit and local lab v2 (2026-10-20)
 
+> Status note (2026-10-22): Historical gain audit. Official36dB improved quiet capture but clipped during playback (log40). The current18dB buffered-lab trial is unvalidated;36dB is not a duplex recommendation.
+
 ## Evidence from pinned source snapshots
 
 | Reference | Gain configuration | PCM path |

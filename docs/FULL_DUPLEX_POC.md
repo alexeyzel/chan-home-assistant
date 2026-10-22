@@ -1,9 +1,12 @@
 # StackChan full-duplex Pipecat proof of concept
 
+> Status note (2026-10-22): Historical initial design. Shared-bus duplex and some interruptions were later demonstrated (log26), but reliable full-duplex acceptance remains unmet. Hardware reference is now used; the initial software-reference-first plan below is superseded. Read CURRENT_STATE.md.
+
 Priority agreed with the owner on 2026-10-10: prove simultaneous capture and
 playback, echo control and conversational interruption before faces, movement,
 Frigate, or HA Assist. The result should be reusable in a standalone firmware or
-potential Dravix integration. No hardware-validated full-duplex build exists yet.
+potential Dravix integration. No release-qualified full-duplex build exists yet. See CURRENT_STATE.md for
+the later partial hardware successes and outstanding failures.
 
 ## Evidence
 

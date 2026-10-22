@@ -1,5 +1,7 @@
 # Native 16 kHz shared audio bus (2026-10-20)
 
+> Status note (2026-10-22): Historical native16k/36dB candidate. Quiet Lab1 passed in log39; playback Lab2 failed in log40. Use the buffered lab selected in CURRENT_STATE.md for the next test.
+
 The owner chose to test 16 kHz directly instead of first testing 36 dB at 48 kHz.
 Two standalone copy-paste configurations are provided:
 

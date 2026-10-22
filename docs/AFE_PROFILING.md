@@ -1,5 +1,7 @@
 # AFE runtime profiling test
 
+> Status note (2026-10-22): Metric definitions remain useful; the live profiling/core-balance test instructions are historical. Current work is the isolated buffered16k lab; see CURRENT_STATE.md.
+
 Use `firmware/stackchan-afe-profile.example.yaml` as a complete copy-paste
 configuration. It fetches the diagnostic component from a pinned Git commit.
 No local header upload is needed. This is a diagnostic firmware, not a claimed

@@ -1,5 +1,7 @@
 # Local audio lab
 
+> Status note (2026-10-22): Historical original48k/6dB lab. Its timing, resampling, target bytes and double-talk instructions do not apply to the current buffered16k test. Follow BUFFERED_AUDIO_LAB.md: first playback test is silent.
+
 Use `firmware/stackchan-audio-lab.example.yaml`. This diagnostic firmware omits
 the Pipecat component entirely: no Gemini, voice WebSocket, Pipecat microphone
 sender or resampler task participates. ESPHome API/Wi-Fi remain for buttons/logs.

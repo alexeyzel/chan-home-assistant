@@ -1,5 +1,7 @@
 # StackChan full AFE experiment
 
+> Status note (2026-10-22): Historical initial AFE port, not the current firmware. Subsequent logs showed throughput deficits. Read CURRENT_STATE.md before using any test procedure below.
+
 Source configuration: [Waveshare Audio VA](https://github.com/jyoushiki/esphome-waveshare-esp32-s3-audio-va/blob/c86ecd3c5124db85181c03ad35aec6578b82b849/waveshare-va.yaml).
 The adapted AFE settings retain the upstream MIT notice in LICENSES/waveshare-audio-va-MIT.txt.
 

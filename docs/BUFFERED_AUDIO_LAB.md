@@ -59,8 +59,10 @@ All dependencies remain pinned, no local includes or manual files are needed.
 ## Test protocol
 
 1. Install with your own capture password, preserve normal listening volume.
-2. Lab 1: wait two seconds, speak normally, finish the phrase before second 7,
-   wait for END. Download all four WAVs and stimulus before starting another test.
+2. Lab 1: count roughly two seconds, say one short normal-volume sentence, then
+   wait for END without Stop. No stopwatch or precise cutoff is required. A phrase
+   tail after second seven will simply be omitted from playback. Download all
+   four WAVs and stimulus before starting another test.
 3. Lab 2: remain silent throughout playback, wait for END. Download all five WAVs
    and full log. Do not reboot between Lab 1 and Lab 2 (stimulus is RAM-only).
 4. Check timing, native ADC gain readback, clipping, reference continuity and
@@ -69,3 +71,13 @@ All dependencies remain pinned, no local includes or manual files are needed.
 Quiet speech may be quieter at 18 dB; evaluate raw speech/background and processed
 speech before adding gain. Post-AFE gain cannot repair ADC saturation. Lab 3 is
 available for no-copy CPU comparison, but not needed for the first repeat.
+
+## Download endpoints
+
+Use the current robot IP with port 8088 and exact paths /mic0.wav, /mic2.wav,
+/reference.wav, /processed.wav, /stimulus.wav. There is no index page at /.
+Username diagnostic, password from capture_password. Server starts after a
+successful test begin. Save Lab 1 and Lab 2 as separate sets; reboot clears RAM.
+
+Status: compiled2026.10.0/IDF 5.5.6, owner testing pending. See CURRENT_STATE.md
+for later results rather than treating this build statement as hardware approval.

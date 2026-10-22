@@ -1,111 +1,57 @@
 # Chan for Home Assistant
 
-ESPHome project for the official M5Stack StackChan AI Desktop Robot.
+ESPHome firmware experiments for the official M5Stack StackChan AI Desktop Robot,
+with Gemini Live through [Pipecat Assist](https://github.com/kyvaith/pipecat-homeassistant).
 
-This repository is being rebuilt from a hardware baseline tested on the owner's
-robot. Half-duplex Gemini Live conversation was confirmed by the owner through the existing
-[Pipecat Assist add-on](https://github.com/kyvaith/pipecat-homeassistant).
-There is no new tested Pipecat firmware release yet.
+## Current state — 2026-10-22
 
-## Current diagnostic test
+**Active candidate:** [buffered native-16k audio lab](firmware/stackchan-audio-lab-buffered.example.yaml).
+It compiled on ESPHome 2026.10.0 / ESP-IDF 5.5.6; **owner hardware results are pending**.
+This lab deliberately omits Pipecat to isolate playback, microphone saturation and AFE.
 
-New native 16 kHz candidates: [local WAV lab](firmware/stackchan-audio-lab-16k.example.yaml)
-and [Pipecat conversation](firmware/stackchan-pipecat-16k.example.yaml).
-Microphone input no longer needs 48->16 conversion; Pipecat output uses 24->16.
-Start with Lab 1; see [protocol and implementation notes](docs/NATIVE_16K.md).
-Hardware validation pending.
+The preceding native-16k Lab 1 recorded clear speech without clipping. Lab 2
+revealed about 21–23% clipped microphone samples and irregular playback feeding.
+The new candidate uses capacity-driven feeding and a fixed 18 dB ADC gain trial.
+Neither this gain nor reliable full-duplex interruption has been validated yet.
 
+The owner previously demonstrated Pipecat replies and some human interruptions,
+but ordinary-voice interruption, startup reliability and recognition remain
+inconsistent. There is no qualified full-duplex firmware release.
 
-[Local audio lab v2 YAML](firmware/stackchan-audio-lab-v2.example.yaml) compares
-36 dB ES7210 microphone gain with the earlier 6 dB test and logs ADC registers
-and native/captured PCM levels. Run quiet Lab 1 first. See the
-[gain audit and test instructions](docs/ES7210_GAIN_AUDIT.md). Hardware validation pending.
+## Continue in a new chat
 
-## Full-duplex experiment
+Read [AGENTS.md](AGENTS.md), then [CURRENT_STATE.md](docs/CURRENT_STATE.md).
+The latter identifies the exact active artifact, latest evidence, unresolved
+questions and next action. [Documentation index](docs/README.md) separates current
+instructions from historical experiments.
 
-Current AFE test: [performance-profile YAML](firmware/stackchan-afe-perf.example.yaml), adapting
-the Waveshare SR/MMR graph and its compiler/cache/PSRAM performance profile to StackChan.
-The first [full AFE YAML](firmware/stackchan-full-afe.example.yaml) suffered sustained
-input drops and missing output in log 31; keep it only for comparison. See the
-[port notes and test procedure](docs/AFE_PORT.md). Hardware testing is pending.
+- [Current test protocol](docs/BUFFERED_AUDIO_LAB.md)
+- [Experiment history and firmware catalog](docs/EXPERIMENT_HISTORY.md)
+- [Pinned references and dependencies](docs/REFERENCE_INDEX.md)
+- [Build and workspace notes](docs/DEVELOPMENT.md)
+- [Chronological evidence ledger](docs/VALIDATION.md)
 
-Current copy-paste experiment: [startup recovery and uplink gain YAML](firmware/stackchan-hwref-uplink.example.yaml).
-It adds a bounded retry for a connection lost immediately after Start and 4x
-post-AEC microphone gain, adjustable through the `pipecat_mic_gain` substitution.
-Both changes await owner testing. Gain also amplifies residual echo and noise.
-The [hardware reference baseline](firmware/stackchan-hwref.example.yaml) restored
-audible replies and enabled human interruption in log 26, but log 27 showed that
-interruption remains unreliable at ordinary speaking volume. Preserve it for
-comparison and rollback. See [validation notes](docs/VALIDATION.md) and
-[source research](docs/AUDIO_REFERENCE_RESEARCH.md).
-The separate [160 ms reference-delay probe](firmware/stackchan-duplex-probe.example.yaml)
-suppressed self-interruption in one owner test, but deliberate human interruption
-failed at maximum volume. It remains a limited baseline, not a completed POC.
-Both configurations are single files with remote dependencies.
+Copy the entire active YAML into ESPHome, set your capture password and keep
+Wi-Fi credentials in Secrets. No manual component/header uploads are needed.
+For Lab 1, count roughly two seconds, say a short normal-volume sentence, then
+wait for END without Stop. Exact timing is unnecessary. Save the files before
+Lab 2; remain silent during Lab 2. See the protocol for download links and limits.
 
-The immediate milestone is simultaneous capture/playback and echo-controlled
-voice interruption. Start with [raw duplex](firmware/stackchan-duplex.example.yaml),
-then test [AEC](firmware/stackchan-duplex-aec.example.yaml). Follow the
-[device test instructions](docs/DUPLEX_TEST.md). These configurations are
-experimental; retain the owner-tested half-duplex firmware for rollback.
+## Product direction
 
-## Current baseline
+ESPHome; sleep, Gemini Live/Pipecat, and later HA Assist modes. Future work:
+faces/emotions, touch reactions, bounded gestures, Frigate person tracking and
+identity, server-side personal prompts plus a guest profile. These are intended
+features, not completed capabilities. Audio reliability comes first.
 
-Copy [official-baseline.example.yaml](firmware/official-baseline.example.yaml)
-into ESPHome Device Builder. Supply credentials through ESPHome Secrets,
-validate, compile, and install. Preserve the working binary before making changes.
-
-The baseline booted with ESPHome 2026.9.1. Home Assistant TTS was audible through
-media_player.stackchan; raising HA volume made it acceptable.
-See [validation notes](docs/VALIDATION.md) for remaining issues.
-
-The example reproduces the tested configuration using upstream main. Rebuilding
-can fetch changed code: the successful build's exact upstream commit is unknown.
-Pin both the BSP and external drivers before publishing a new firmware release.
-
-## Intended behavior
-
-- ESPHome firmware.
-- Sleep, Gemini Live conversation via Pipecat, and later a separate HA Assist mode.
-- Local face animation, touch reactions, and bounded conversational gestures.
-- Frigate identity and tracking with calibrated coordinate mapping.
-- Server-side personal prompts and an unknown/guest profile.
-
-Pipecat microphone capture and audible replies were confirmed by the owner.
-Simultaneous capture/playback and some human interruptions were demonstrated.
-Reliable interruption across volumes, tracking and personalization remain unverified. Do not command motion until the reported
-Y-angle mismatch is resolved.
-
-## Development and releases
-
-Prove Pipecat input/output, repeated turns, and start/stop first. Add behavior
-incrementally. Keep credentials, raw logs, personal profiles, and local device
-configuration out of Git. Publish only after physical validation and dependency
-pinning, with exact versions and limitations recorded.
-
-The previous Assist-first integration, firmware overlays, HACS metadata, patch,
-and associated tests/build workflow have been removed from the current tree.
-They remain recoverable in Git history and historical tags v0.1.1 and v0.1.2.
-Those tags are not releases of the new Pipecat direction. This cleanup does not
-uninstall anything already installed in Home Assistant.
+User volume is a comfort control, not an AEC tuning knob. Keep the official board
+power/pins and one I2S owner. Resolve the Y-servo position mismatch before motion.
+Keep credentials, personal profiles and recordings out of Git. Preserve rollback
+artifacts and exact source revisions; do not publish a release until hardware
+acceptance. The old Assist-first integration history/tags v0.1.1 and v0.1.2 are
+not releases of the current Pipecat direction.
 
 ## License
 
-Original material: [MIT](LICENSE).
-External software retains its own licenses; see [THIRD_PARTY.md](THIRD_PARTY.md).
-
-### AFE runtime diagnostic test
-
-[Copy-paste YAML](firmware/stackchan-afe-profile.example.yaml) adds task CPU and
-AFE callback timing measurements while preserving the afe-perf audio settings.
-[Procedure and interpretation](docs/AFE_PROFILING.md). Hardware results pending.
-
-[Core-balance test YAML](firmware/stackchan-afe-balanced.example.yaml) moves only
-the audio bus task to core 1 based on log 33; profiling and audio settings remain.
-See [test criteria](docs/AFE_PROFILING.md#core-balance-follow-up-log-33).
-
-### Isolated audio lab
-
-[Local lab YAML](firmware/stackchan-audio-lab.example.yaml) captures pre/post-AFE
-audio without Pipecat. Set its capture password first.
-[Recording/download procedure](docs/AUDIO_LAB.md). Hardware validation pending.
+Original material: [MIT](LICENSE). External software retains its licenses;
+see [THIRD_PARTY.md](THIRD_PARTY.md).

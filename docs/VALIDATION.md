@@ -1,5 +1,7 @@
 # Device validation
 
+> Status note (2026-10-22): Chronological evidence ledger. Earlier pending/next-test statements describe their checkpoint, not current instructions. CURRENT_STATE.md is the current summary; later entries supersede earlier uncertainty where explicitly supported.
+
 ## 2026-10-09: official M5Stack BSP
 
 Hardware: official-store StackChan AI Desktop Robot; exact assembly revision
@@ -607,3 +609,15 @@ Build result for the new uplink test:
 - New build path avoids Windows cleanup permissions. Known local ldgen command
   suffix required direct invocation of its generated arguments before rebuilding.
   No device flashing. Acoustic timing, clipping and AEC remain hardware tests.
+
+## Documentation handoff (2026-10-22)
+
+- Consolidated current state, experiment/firmware catalog, pinned references and
+  build notes. README selects only the buffered native16k lab as the active test.
+- Buffered lab remains compile-validated only; no owner results received yet.
+- Clarified owner protocol: roughly two seconds of silence, a short sentence,
+  wait for END. No stopwatch or exact seven-second cutoff is required.
+- Corrected download guidance: exact WAV routes on port 8088; no HTTP index route.
+- Added local workspace-parent AGENTS.md pointing into repository/AGENTS.md.
+  This parent file is outside Git; repository handoff is portable through Git.
+- Documentation-only update: no firmware, gain, pins or dependency changes.
