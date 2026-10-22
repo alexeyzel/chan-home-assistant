@@ -131,3 +131,11 @@ seen as192.168.1.92; verify current address rather than assuming it persists.
 Unknowns: installed Pipecat add-on version, exact previously successful owner
 half-duplex YAML/binary, assembly revision, robust live performance. Do not invent
 them. See history for partial successes and transport failures.
+
+## Publication policy (owner request, 2026-10-22)
+
+Project remains experimental and is developed with OpenAI Codex; hardware tests
+are performed by the owner. Withdraw historical public releases into drafts,
+preserving tags/assets. Publish a release only after a working version is tested
+and owner direction supports publication. README must state development/Codex
+usage clearly; this is not an official OpenAI or M5Stack firmware endorsement.

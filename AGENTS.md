@@ -56,7 +56,9 @@ implemented capabilities. Coordinator placement remains to be decided when neede
 - Frigate identity does not establish the speaker or grant HA permissions.
 - Keep credentials, personal profiles, and memory server-side and out of Git.
 - Pin BSP, external drivers, and voice components for releases.
-- Preserve license notices and Git history; do not delete historical tags/releases.
+- Preserve license notices, Git history and historical tags. The owner explicitly
+  requested withdrawing public releases on 2026-10-22: keep old releases as drafts
+  with their assets preserved; do not republish them without owner direction.
 - No new release until physical validation; record exact tested versions.
 
 ## Communication

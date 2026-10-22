@@ -105,3 +105,7 @@ After a test: update CURRENT_STATE, append VALIDATION evidence, update the firmw
 catalog/protocol if needed. Record log filenames, exact config/source versions,
 owner report, numerical observations and remaining uncertainty separately. When
 opening a new chat, use this actual workspace and ask it to start with AGENTS.md.
+
+Owner requested withdrawal of existing public releases on 2026-10-22. Keep them
+as drafts with tags/assets retained; do not recreate public releases as part of
+routine pushes. Clearly disclose OpenAI Codex-assisted development in README.

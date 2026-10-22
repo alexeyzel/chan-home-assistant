@@ -621,3 +621,14 @@ Build result for the new uplink test:
 - Added local workspace-parent AGENTS.md pointing into repository/AGENTS.md.
   This parent file is outside Git; repository handoff is portable through Git.
 - Documentation-only update: no firmware, gain, pins or dependency changes.
+
+## Public release withdrawal (2026-10-22)
+
+- Owner explicitly requested removing public releases while development continues.
+  GitHub releases v0.1.1 and v0.1.2 were changed to drafts; authenticated API
+  verification reports zero published releases. Both tags remain. Each release
+  had zero uploaded assets. Metadata backed up locally under ignored .runtime/.
+- Main-branch README commit2e82c51 clearly identifies experimental development
+  with OpenAI Codex, owner hardware testing and the active development branch.
+  Historical main content is labeled as an earlier snapshot. No firmware merged
+  into main. Development README and agent policy updated consistently.

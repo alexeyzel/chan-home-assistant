@@ -1,5 +1,10 @@
 # Chan for Home Assistant
 
+> **Development status: experimental / work in progress.**
+> This project is being developed with **OpenAI Codex**, with hardware testing
+> performed by the owner. It is not a stable or production-ready firmware.
+> Public releases are withheld until a working version is validated on the robot.
+
 ESPHome firmware experiments for the official M5Stack StackChan AI Desktop Robot,
 with Gemini Live through [Pipecat Assist](https://github.com/kyvaith/pipecat-homeassistant).
 
