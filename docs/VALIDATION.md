@@ -560,3 +560,31 @@ Build result for the new uplink test:
 - Both images verified by esptool as ESP32-S3 (chip ID 9), valid checksum/hash.
   Windows ldgen suffix workaround applied to both generated build commands;
   subsequent unchanged-YAML compilation succeeded. No flashing performed.
+
+
+## ESPHome 2026.10 compatibility (2026-10-22)
+
+- Owner chan-install.txt reports ESPHome 2026.10.0 / ESP-IDF 5.5.6. Compilation
+  failed before upload: CapsRingBuffer treated base handle_ as a field, while
+  2026.10 exposes handle_() computed from the static structure. Previous full
+  builds were on 2026.9.1; min_version does not pin the build tool version.
+- Reviewed official 2026.10.0 ring_buffer.h/.cpp. New destructor checks storage_,
+  old one checks handle_. Added a versioned native-handle accessor, preserved
+  old handle initialization, and clear storage_/size_ after derived cleanup so
+  base destruction cannot delete/free twice. Allocation failure leaves no storage.
+  Reinstallation of a live buffer is rejected to prevent leakage.
+- Updated both native-16k YAMLs to audio stack 80e0d8c96044ec3c1c5ba370ac88354046952611.
+  Separate -oct build paths avoid stale generated files; no audio tuning changes.
+- Added tests/test_ring_buffer_compat.py: actual production header compiled with
+  exact upstream 2026.9.1 and 2026.10.0 headers, debug off/on (4 passes).
+  FreeRTOS/heap declarations are stubs: this is API compatibility validation,
+  not runtime allocator or on-device audio testing.
+- Official source: https://github.com/esphome/esphome/blob/2026.10.0/esphome/components/ring_buffer/ring_buffer.h
+  and corresponding ring_buffer.cpp.
+- Both updated YAMLs fully compiled with ESPHome 2026.10.0 / ESP-IDF 5.5.6.
+  Lab: static RAM 172091/341760, image 1853171/8126464, config 0xe32a4e9e.
+  Pipecat: static RAM 171255/341760, image 1973615/8126464, config 0x1411f8e8.
+- Local Windows ldgen batch suffix issue reproduced on both builds; executing
+  generated ldgen arguments directly and recompiling unchanged YAMLs succeeded.
+- esptool verified both images: ESP32-S3 chip ID 9, 16 MB, valid checksum/hash.
+  No flashing performed. Native-16k hardware behavior remains unverified.

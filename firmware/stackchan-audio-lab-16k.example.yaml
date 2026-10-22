@@ -27,13 +27,13 @@ external_components:
   - source:
       type: git
       url: https://github.com/alexeyzel/chan-home-assistant
-      ref: 4541119291c9b67b6fa44f75fe27e04ae0480026
+      ref: 80e0d8c96044ec3c1c5ba370ac88354046952611
       path: components
     components: [esp_audio_stack]
 
 esphome:
   min_version: 2026.9.1
-  build_path: stackchan-audio-lab-16k-build
+  build_path: stackchan-audio-lab-16k-oct-build
   compile_process_limit: 2
   on_boot:
     - priority: -100
