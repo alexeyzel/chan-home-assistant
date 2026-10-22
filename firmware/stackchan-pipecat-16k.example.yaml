@@ -1,0 +1,421 @@
+# Native 16 kHz shared bus: ES7210 36 dB; no input sample-rate conversion.
+substitutions:
+  name: stackchan-test
+  friendly_name: StackChan Test
+  # AFE performs gain control; no additional fixed uplink amplification.
+  pipecat_mic_gain: "1"
+
+packages:
+  stackchan:
+    url: https://github.com/m5stack/esphome-yaml
+    files: [examples/kit/stackchan-bsp.factory.yaml]
+    ref: cc708ddcc9dea7cfc746b408d2495ce281bbf2d2
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/m5stack/esphome-yaml
+      ref: cc708ddcc9dea7cfc746b408d2495ce281bbf2d2
+      path: components
+    components: [axp2101, aw88298, aw9523b, si12t, m5ioe1, ftservo, scs9009]
+  - source:
+      type: git
+      url: https://github.com/alexeyzel/chan-home-assistant
+      ref: e48a26e57a7c6d5017e9ee92f856956bd487ae51
+      path: components
+    components: [esp_afe]
+  - source:
+      type: git
+      url: https://github.com/alexeyzel/chan-home-assistant
+      ref: 80e0d8c96044ec3c1c5ba370ac88354046952611
+      path: components
+    components: [esp_audio_stack]
+  - source:
+      type: git
+      url: https://github.com/kyvaith/pipecat-homeassistant
+      ref: a538d1d1bacc8609061719f0b05c1622147ccb4b
+      path: components
+    components: [va_pipecat]
+
+esphome:
+  min_version: 2026.9.1
+  build_path: stackchan-pipecat-16k-oct-build
+  compile_process_limit: 2
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: |-
+            id(duplex_speaker).set_volume(1.0f);
+            id(duplex_audio).set_master_volume_min_db(-30.0f);
+            // RX is 4x16-bit TDM with half-frame WS. On DOUT this is also
+            // standard stereo I2S with 32-bit slots: left high 16 bits carry
+            // our PCM; all other TX slots are zero. AW88298 must expect 64fs.
+            uint16_t before = 0, cfg = 0, after = 0;
+            if (!id(aw88298_dac).read_byte_16(0x06, &before) ||
+                !id(aw88298_dac).read_byte_16(0x07, &cfg)) {
+              ESP_LOGE("amp_clock", "Cannot read AW88298 format registers");
+              return;
+            }
+            // Require the official 16 kHz, left-channel, Philips I2S setup.
+            // Retain two-slot amplifier mode; four-slot input capture is independent.
+            if ((before & 0x1F0F) != 0x1403 || (cfg & 0x0004) != 0) {
+              ESP_LOGE("amp_clock", "Unexpected format: I2SCTRL=0x%04x I2SCFG1=0x%04x", before, cfg);
+              return;
+            }
+            const uint16_t expected = (before & ~uint16_t(0x00F0)) | 0x00E0;
+            if (!id(aw88298_dac).write_byte_16(0x06, expected) ||
+                !id(aw88298_dac).read_byte_16(0x06, &after) || after != expected) {
+              ESP_LOGE("amp_clock", "AW88298 clock configuration/readback failed");
+              return;
+            }
+            id(amp_clock_ready) = true;
+            ESP_LOGI("amp_clock", "AW88298 I2SCTRL 0x%04x -> 0x%04x; 64 BCLK/frame, 32-bit left slot", before, after);
+        - script.execute: amplifier_diagnostics
+
+globals:
+  - id: amp_clock_ready
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: speaker_test_bytes
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+script:
+  # One recovery attempt, only for a disconnect in the first five seconds.
+  # Stop/test/mode buttons cancel this script, so it cannot reopen a stopped mic.
+  - id: pipecat_start_guard
+    mode: single
+    then:
+      - logger.log: "Pipecat Start requested; waiting for connection"
+      - wait_until:
+          condition:
+            lambda: return id(pipecat_va).is_connected();
+          timeout: 10s
+      - delay: 500ms
+      - if:
+          condition:
+            lambda: return id(pipecat_va).is_connected() && id(amp_clock_ready) && !id(speaker_test).is_running();
+          then:
+            - va_pipecat.start: pipecat_va
+            - wait_until:
+                condition:
+                  lambda: return !id(pipecat_va).is_connected();
+                timeout: 5s
+            - if:
+                condition:
+                  lambda: return !id(pipecat_va).is_connected();
+                then:
+                  - logger.log: "Startup connection lost; waiting for one retry"
+                  - wait_until:
+                      condition:
+                        lambda: return id(pipecat_va).is_connected();
+                      timeout: 10s
+                  - delay: 500ms
+                  - if:
+                      condition:
+                        lambda: return id(pipecat_va).is_connected() && id(amp_clock_ready) && !id(speaker_test).is_running();
+                      then:
+                        - logger.log: "Retrying Pipecat Start after reconnection"
+                        - va_pipecat.start: pipecat_va
+                      else:
+                        - logger.log: "Pipecat startup retry unavailable; press Start when connected"
+          else:
+            - logger.log: "Pipecat Start unavailable; check connection and amplifier diagnostics"
+  - id: amplifier_diagnostics
+    mode: single
+    then:
+      - lambda: |-
+          const uint8_t registers[] = {0x01, 0x04, 0x05, 0x06, 0x07, 0x0C};
+          for (uint8_t reg : registers) {
+            uint16_t value = 0;
+            if (id(aw88298_dac).read_byte_16(reg, &value))
+              ESP_LOGI("amp_diag", "AW88298 reg[0x%02x]=0x%04x", reg, value);
+            else
+              ESP_LOGE("amp_diag", "AW88298 read failed: reg[0x%02x]", reg);
+          }
+          ESP_LOGI("amp_diag", "clock_ready=%s master=%.3f speaker_volume=%.3f muted=%s",
+            id(amp_clock_ready) ? "YES" : "NO", id(duplex_audio).get_master_volume(),
+            id(duplex_speaker).get_volume(), id(duplex_speaker).get_mute_state() ? "YES" : "NO");
+  - id: speaker_test
+    mode: single
+    then:
+      - script.stop: pipecat_start_guard
+      - va_pipecat.stop: pipecat_va
+      - delay: 300ms
+      - speaker.stop: pipecat_speaker
+      - wait_until:
+          condition:
+            lambda: return id(pipecat_speaker).is_stopped();
+          timeout: 2s
+      - if:
+          condition:
+            lambda: return id(amp_clock_ready) && id(pipecat_speaker).is_stopped();
+          then:
+            - lambda: |-
+                id(speaker_test_bytes) = 0;
+                id(duplex_mic).start();
+                id(duplex_speaker).set_audio_stream_info(esphome::audio::AudioStreamInfo(16, 1, 16000));
+                id(duplex_speaker).start();
+            - wait_until:
+                condition:
+                  lambda: return id(duplex_speaker).is_running() && id(duplex_mic).is_running();
+                timeout: 3s
+            - if:
+                condition:
+                  lambda: return id(duplex_speaker).is_running() && id(duplex_mic).is_running();
+                then:
+                  - logger.log: "Speaker test: 1 kHz at -18 dBFS, current user volume; Pipecat stopped"
+                  - repeat:
+                      count: 100
+                      then:
+                        - lambda: |-
+                            int16_t samples[160];
+                            for (size_t i = 0; i < 160; ++i)
+                              samples[i] = static_cast<int16_t>(4096.0f * sinf(6.28318530718f * (i % 16) / 16.0f));
+                            id(speaker_test_bytes) += id(duplex_speaker).play(
+                              reinterpret_cast<const uint8_t *>(samples), sizeof(samples), 0);
+                        - delay: 10ms
+                  - lambda: |-
+                      ESP_LOGI("speaker_test", "PCM accepted=%u/32000 bytes (queue acceptance, not proof of sound)",
+                        static_cast<unsigned>(id(speaker_test_bytes)));
+                  - script.execute: amplifier_diagnostics
+                  - speaker.finish: duplex_speaker
+                  - delay: 500ms
+                else:
+                  - logger.log:
+                      level: ERROR
+                      format: "Speaker test aborted: audio stack did not start"
+            - lambda: id(duplex_mic).stop();
+            - speaker.stop: duplex_speaker
+          else:
+            - logger.log:
+                level: ERROR
+                format: "Speaker test aborted: amplifier not ready or Pipecat playback did not stop"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+  on_connect: !remove
+  on_disconnect: !remove
+
+api:
+  custom_services: true
+
+logger:
+  level: DEBUG
+
+# Audio Stack is the sole I2S owner. No legacy speaker/media player may claim it.
+i2s_audio: !remove
+media_player: !remove
+esp32_camera: !remove
+esp32_improv: !remove
+
+# Audio Stack codec-dev owns ES7210; official AW88298 and power handling stay.
+audio_adc: !remove
+
+esp_audio_stack:
+  id: duplex_audio
+  # Log 33: core 0 saturated while core 1 had 55-56% idle.
+  # Keep priority 19; free core 0 time for afe_feed without moving the DSP graph.
+  task_core: 1
+  sample_rate: 16000
+  output_sample_rate: 16000
+  bits_per_sample: 16
+  slot_bit_width: 16
+  use_tdm_reference: true
+  tdm_total_slots: 4
+  tdm_mic_slots: [0, 2]
+  tdm_ref_slot: 1
+  tdm_tx_slot: 0
+  codec:
+    i2c_id: bsp_bus
+    input:
+      type: es7210
+      address: 0x40
+      mic_selected: 0x07
+      gain_db: 36
+      # Codec gain channel is ADC MIC3 (index 2), not TDM slot 1.
+      ref_channel: 2
+      ref_gain_db: 0
+  i2s_mclk_pin:
+    number: GPIO0
+    ignore_strapping_warning: true
+  i2s_bclk_pin: GPIO34
+  i2s_lrclk_pin: GPIO33
+  i2s_din_pin: GPIO14
+  i2s_dout_pin: GPIO13
+  buffers_in_psram: true
+  processor_id: stackchan_afe
+  telemetry: true
+  telemetry_log_interval_frames: 128
+  on_state:
+    - logger.log:
+        format: "Audio Stack state: %s"
+        args: [state.c_str()]
+
+audio_dac:
+  - id: !extend aw88298_dac
+    sample_rate: 16000
+
+microphone:
+  - id: !remove i2s_mic
+  - platform: esp_audio_stack
+    id: duplex_mic
+
+speaker:
+  - id: !remove i2s_speaker
+  - platform: esp_audio_stack
+    id: duplex_speaker
+    buffer_duration: 100ms
+  - platform: resampler
+    id: pipecat_speaker
+    output_speaker: duplex_speaker
+    sample_rate: 16000
+    bits_per_sample: 16
+
+va_pipecat:
+  id: pipecat_va
+  auto_provision: true
+  microphone:
+    microphone: duplex_mic
+    channels: 0
+    gain_factor: ${pipecat_mic_gain}
+  speaker: pipecat_speaker
+  barge_in: true
+  playback_buffer_size: 2MB
+  on_phase:
+    - logger.log:
+        format: "Pipecat phase: %s"
+        args: [phase.c_str()]
+  on_transcript:
+    - logger.log:
+        format: "Pipecat %s: %s"
+        args: [role.c_str(), text.c_str()]
+  on_error:
+    - logger.log:
+        level: ERROR
+        format: "Pipecat error %s: %s"
+        args: [code.c_str(), message.c_str()]
+
+button:
+  - platform: template
+    name: Audio Diagnostics
+    on_press:
+      - lambda: id(stackchan_afe).dump_config();
+      - esp_audio_stack.dump_diagnostics: duplex_audio
+      - script.execute: amplifier_diagnostics
+  - platform: template
+    name: Speaker Test
+    on_press:
+      - script.execute: speaker_test
+  - platform: template
+    name: Pipecat Start
+    on_press:
+      - if:
+          condition:
+            lambda: return id(amp_clock_ready) && !id(speaker_test).is_running();
+          then:
+            - script.execute: pipecat_start_guard
+          else:
+            - logger.log:
+                level: WARN
+                format: "Start blocked: amplifier not ready or Speaker Test active"
+  - platform: template
+    name: Pipecat Stop
+    on_press:
+      - script.stop: pipecat_start_guard
+      - va_pipecat.stop: pipecat_va
+
+number:
+  - platform: esp_audio_stack
+    master_volume:
+      name: Duplex Volume
+      speaker_id: duplex_speaker
+
+# AFE graph from Waveshare Audio VA: two microphones plus hardware reference.
+# Keep StackChan's proven analog gains; Waveshare's 30 dB reference gain is
+# board-specific and must not be copied onto this amplifier feedback path.
+esp_afe:
+  id: stackchan_afe
+  type: sr
+  mode: low_cost
+  mic_num: 2
+  input_format: mmr
+  aec_enabled: true
+  aec_filter_length: 4
+  aec_nlp_level: aggressive
+  se_enabled: true
+  ns_enabled: false
+  vad_enabled: false
+  agc_enabled: true
+  post_afe_agc_support: true
+  agc_compression_gain: 15
+  agc_target_level: 3
+  memory_alloc_mode: more_psram
+  feed_buf_in_psram: true
+  feed_ring_in_psram: true
+  fetch_ring_in_psram: true
+
+switch:
+  - platform: esp_audio_stack
+    aec:
+      name: Echo Cancellation
+      restore_mode: ALWAYS_ON
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: id(stackchan_afe).dump_runtime_diagnostics();
+  - interval: 10s
+    then:
+      - if:
+          condition:
+            lambda: return id(duplex_mic).is_running();
+          then:
+            - esp_audio_stack.dump_diagnostics: duplex_audio
+            - script.execute: amplifier_diagnostics
+
+sensor:
+  - platform: esp_audio_stack
+    esp_audio_stack_id: duplex_audio
+    tdm_slot_levels:
+      - name: Audio Slot 0
+        slot: 0
+        update_interval: 1s
+      - name: Audio Slot 1 Reference
+        slot: 1
+        update_interval: 1s
+      - name: Audio Slot 2
+        slot: 2
+        update_interval: 1s
+      - name: Audio Slot 3
+        slot: 3
+        update_interval: 1s
+
+esp32:
+  variant: esp32s3
+  cpu_frequency: 240MHz
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    components:
+      - espressif/esp-sr==2.5.5
+    # Same performance/memory profile as the pinned Waveshare AFE reference.
+    advanced:
+      compiler_optimization: PERF
+    sdkconfig_options:
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
+      CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB: "y"
+      CONFIG_SPIRAM_RODATA: "y"
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "y"
+      CONFIG_SPIRAM_USE_CAPS_ALLOC: "n"
+      CONFIG_SPIRAM_USE_MALLOC: "y"
+      CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL: "1024"
+      CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL: "32768"
+      CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS: "y"
+      CONFIG_FREERTOS_USE_TRACE_FACILITY: "y"
+      CONFIG_FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER: "y"

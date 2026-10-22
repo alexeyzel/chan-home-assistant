@@ -3,66 +3,64 @@
 > **Development status: experimental / work in progress.**
 > This project is being developed with **OpenAI Codex**, with hardware testing
 > performed by the owner. It is not a stable or production-ready firmware.
-> Historical releases have been withdrawn from publication; a new release will
-> be published only after a working version is validated on the robot.
+> Historical releases are kept as drafts. A new public release will follow only
+> after a working version is validated on the robot.
 
-Active development is on [codex/full-duplex-poc](https://github.com/alexeyzel/chan-home-assistant/tree/codex/full-duplex-poc).
-See the [current project state](https://github.com/alexeyzel/chan-home-assistant/blob/codex/full-duplex-poc/docs/CURRENT_STATE.md)
-and [experiment history](https://github.com/alexeyzel/chan-home-assistant/blob/codex/full-duplex-poc/docs/EXPERIMENT_HISTORY.md)
-for the latest tests, known failures and next steps.
+ESPHome firmware experiments for the official M5Stack StackChan AI Desktop Robot,
+with Gemini Live through [Pipecat Assist](https://github.com/kyvaith/pipecat-homeassistant).
 
-## Earlier main-branch baseline snapshot
+Active development is maintained on **main**. This branch is experimental;
+merging development here does not create a release.
 
-The material below describes the earlier baseline retained on main. Use the
-working branch's current-state document for present development status.
+## Current state — 2026-10-22
 
-ESPHome project for the official M5Stack StackChan AI Desktop Robot.
+**Active candidate:** [buffered native-16k audio lab](firmware/stackchan-audio-lab-buffered.example.yaml).
+It compiled on ESPHome 2026.10.0 / ESP-IDF 5.5.6; **owner hardware results are pending**.
+This lab deliberately omits Pipecat to isolate playback, microphone saturation and AFE.
 
-This repository is being rebuilt from a hardware baseline tested on the owner's
-robot. The next milestone is Gemini Live through the existing
-[Pipecat Assist add-on](https://github.com/kyvaith/pipecat-homeassistant).
-There is no new tested Pipecat firmware release yet.
+The preceding native-16k Lab 1 recorded clear speech without clipping. Lab 2
+revealed about 21–23% clipped microphone samples and irregular playback feeding.
+The new candidate uses capacity-driven feeding and a fixed 18 dB ADC gain trial.
+Neither this gain nor reliable full-duplex interruption has been validated yet.
 
-## Current baseline
+The owner previously demonstrated Pipecat replies and some human interruptions,
+but ordinary-voice interruption, startup reliability and recognition remain
+inconsistent. There is no qualified full-duplex firmware release.
 
-Copy [official-baseline.example.yaml](firmware/official-baseline.example.yaml)
-into ESPHome Device Builder. Supply credentials through ESPHome Secrets,
-validate, compile, and install. Preserve the working binary before making changes.
+## Continue in a new chat
 
-The baseline booted with ESPHome 2026.9.1. Home Assistant TTS was audible through
-media_player.stackchan; raising HA volume made it acceptable.
-See [validation notes](docs/VALIDATION.md) for remaining issues.
+Read [AGENTS.md](AGENTS.md), then [CURRENT_STATE.md](docs/CURRENT_STATE.md).
+The latter identifies the exact active artifact, latest evidence, unresolved
+questions and next action. [Documentation index](docs/README.md) separates current
+instructions from historical experiments.
 
-The example reproduces the tested configuration using upstream main. Rebuilding
-can fetch changed code: the successful build's exact upstream commit is unknown.
-Pin both the BSP and external drivers before publishing a new firmware release.
+- [Current test protocol](docs/BUFFERED_AUDIO_LAB.md)
+- [Experiment history and firmware catalog](docs/EXPERIMENT_HISTORY.md)
+- [Pinned references and dependencies](docs/REFERENCE_INDEX.md)
+- [Build and workspace notes](docs/DEVELOPMENT.md)
+- [Chronological evidence ledger](docs/VALIDATION.md)
 
-## Intended behavior
+Copy the entire active YAML into ESPHome, set your capture password and keep
+Wi-Fi credentials in Secrets. No manual component/header uploads are needed.
+For Lab 1, count roughly two seconds, say a short normal-volume sentence, then
+wait for END without Stop. Exact timing is unnecessary. Save the files before
+Lab 2; remain silent during Lab 2. See the protocol for download links and limits.
 
-- ESPHome firmware.
-- Sleep, Gemini Live conversation via Pipecat, and later a separate HA Assist mode.
-- Local face animation, touch reactions, and bounded conversational gestures.
-- Frigate identity and tracking with calibrated coordinate mapping.
-- Server-side personal prompts and an unknown/guest profile.
+## Product direction
 
-Pipecat on the robot, microphone capture, echo handling, interruption, tracking,
-and personalization remain unverified. Do not command motion until the reported
-Y-angle mismatch is resolved.
+ESPHome; sleep, Gemini Live/Pipecat, and later HA Assist modes. Future work:
+faces/emotions, touch reactions, bounded gestures, Frigate person tracking and
+identity, server-side personal prompts plus a guest profile. These are intended
+features, not completed capabilities. Audio reliability comes first.
 
-## Development and releases
-
-Prove Pipecat input/output, repeated turns, and start/stop first. Add behavior
-incrementally. Keep credentials, raw logs, personal profiles, and local device
-configuration out of Git. Publish only after physical validation and dependency
-pinning, with exact versions and limitations recorded.
-
-The previous Assist-first integration, firmware overlays, HACS metadata, patch,
-and associated tests/build workflow have been removed from the current tree.
-They remain recoverable in Git history and historical tags v0.1.1 and v0.1.2.
-Those tags are not releases of the new Pipecat direction. This cleanup does not
-uninstall anything already installed in Home Assistant.
+User volume is a comfort control, not an AEC tuning knob. Keep the official board
+power/pins and one I2S owner. Resolve the Y-servo position mismatch before motion.
+Keep credentials, personal profiles and recordings out of Git. Preserve rollback
+artifacts and exact source revisions; do not publish a release until hardware
+acceptance. The old Assist-first integration history/tags v0.1.1 and v0.1.2 are
+not releases of the current Pipecat direction.
 
 ## License
 
-Original material: [MIT](LICENSE).
-External software retains its own licenses; see [THIRD_PARTY.md](THIRD_PARTY.md).
+Original material: [MIT](LICENSE). External software retains its licenses;
+see [THIRD_PARTY.md](THIRD_PARTY.md).

@@ -1,5 +1,7 @@
 # Device validation
 
+> Status note (2026-10-22): Chronological evidence ledger. Earlier pending/next-test statements describe their checkpoint, not current instructions. CURRENT_STATE.md is the current summary; later entries supersede earlier uncertainty where explicitly supported.
+
 ## 2026-10-09: official M5Stack BSP
 
 Hardware: official-store StackChan AI Desktop Robot; exact assembly revision
@@ -31,9 +33,13 @@ Evidence: owner-provided logs and owner confirmation. Raw logs are not committed
 - AW88298 reported Initialized: NO despite setup completion and audible playback.
   Inspected upstream setup did not set the flag; this alone is not audio failure.
 - Initial log covered about 21 seconds, not a long stability test.
-- Microphone capture, head-touch transitions, and concurrent load remain unverified.
-- Pipecat YAML was proposed in chat, but compilation and device operation have
-  not been confirmed. It is not a tested release.
+- Head-touch transitions and sustained concurrent load remain unverified.
+- Subsequent owner tests confirmed clear microphone recordings and audible
+  Pipecat replies with barge-in disabled. Exact deployed YAML/revisions are still
+  needed for reproducibility; this is not a tested release.
+- Enabling barge-in produced repeated `Parent bus is busy` speaker start errors
+  while capture continued. Reverting restored conversation, per owner report.
+  See FULL_DUPLEX_POC.md for the next milestone.
 
 ## Next acceptance test
 
@@ -46,3 +52,593 @@ Evidence: owner-provided logs and owner confirmation. Raw logs are not committed
 
 Before a new release, record results, pin sources, and document recovery and
 limitations. No new release was created by this cleanup.
+
+## 2026-10-10: experimental duplex build validation
+
+- Local toolchain: ESPHome 2026.9.1, ESP-IDF 5.5.5, Windows, Python 3.12.
+- Raw duplex and AEC example configurations passed ESPHome schema validation.
+- Final raw duplex example (including diagnostics) compiled successfully:
+  image 1,180,615 bytes, static DIRAM usage 120,655 / 341,760 bytes. These figures
+  do not measure runtime heap/PSRAM headroom or audio performance.
+- AEC variant compiled successfully: image 1,236,623 bytes, static DIRAM usage
+  123,879 / 341,760 bytes. No device-level AEC effectiveness is claimed.
+- Generated C++ contains Audio Stack microphone/speaker, no legacy I2S
+  microphone/speaker, and both ES7210/AW88298 are configured for 48 kHz.
+- Generated AW88298 source hash matches the pinned M5Stack checkout.
+- Builds used placeholder Wi-Fi credentials. Do not install their local binaries;
+  compile the YAML in the owner's ESPHome environment with real secrets.
+- At this build checkpoint, no experimental firmware had been installed.
+
+## Subsequent owner device tests, 2026-10-10
+
+- Owner installed both raw-duplex and SR AEC variants and heard replies while
+  microphone transmission continued. Shared-bus blocking was not observed in
+  the supplied tests.
+- SR AEC initialized and was enabled, but reply fragments were recognized as
+  user speech and triggered repeated interruptions. At 50% volume the issue
+  persisted with reported uplink peaks below int16 saturation. Uplink peaks
+  alone do not locate clipping or quantify echo cancellation.
+- Pipecat also suffered a separate expired Gemini session: connection task
+  exception followed by `ready=False session=False` despite live audio ingress.
+- The next experiment is the single-file FD AEC configuration with runtime
+  mode comparison and diagnostic logging. It is not an established echo fix.
+
+## FD diagnostic build, 2026-10-10
+
+- `stackchan-duplex-fd.example.yaml` passed schema validation and compiled with
+  ESPHome 2026.9.1 / ESP-IDF 5.5.5. Flash usage: 1,239,383 bytes; static DIRAM:
+  124,175 / 341,760 bytes. Runtime memory and echo suppression remain untested.
+- Build uses a separate directory after Windows denied cleanup of the old build.
+- FD is the boot default; runtime FD/SR buttons stop the session and print the
+  actual processor configuration. Automatic diagnostics run during capture.
+- Firmware binaries contain placeholder Wi-Fi settings; use the copy-paste YAML
+  with the owner's secrets, not these locally generated binaries.
+
+## FD owner test: echo still triggers interruption
+
+- Owner log (17) confirms `fd_low_cost`, initialized YES, AEC enabled, and
+  simultaneous capture/playback with no reported I2S error.
+- At 18:24:20 assistant says "Chym mozhu dopomohty"; at 18:24:23 server sends
+  barge_in and at 18:24:24 user transcript contains "mozhe dopomohty".
+  Further assistant phrases reappear as user speech. FD did not solve feedback.
+- Input WAV is mono PCM16 / 16 kHz, 17.568 s, peak 32710; only 0.0146% of
+  samples have absolute value >=32000. This does not establish ADC clipping.
+- Volume has two software layers: output 0.8 and master 0.8 yield logged
+  combined linear gain 0.105. The on-boot speaker volume is not the master
+  volume entity and compounds its attenuation.
+- Underrun counts include idle periods and cannot alone establish playback
+  starvation. Zero AFE counters are unsupported standalone-AEC telemetry.
+- Next diagnosis needs raw mic, playback reference, and processed mic aligned
+  in time; current logs and processed input alone cannot isolate reference
+  alignment, gain, or acoustic distortion. Avoid claiming an AEC-mode fix.
+
+## Inline signal probe build
+
+- Single-file `stackchan-duplex-probe.example.yaml` validated and compiled on
+  ESPHome 2026.9.1 / ESP-IDF 5.5.5: flash 1,241,427 bytes; static DIRAM 124,343
+  / 341,760 bytes. Hardware test pending.
+- Inline AudioProcessor wrapper delegates to EspAec and logs mic/reference/output
+  RMS and peaks every 32 frames, including zero-reference and failure counts.
+  It measures input before processing (buffers can alias) and output on success.
+  This provides levels, not acoustic delay or separate audio recordings.
+- Speaker output gain is unity, leaving the master-volume entity as the user
+  control. Begin the owner test at 50%, since attenuation is now lower.
+
+## Owner signal-probe tests, 2026-10-11
+
+- Log 18: reference is nonzero during playback, processor calls succeed, but
+  pre-AEC mic peaks reach 32768 and reply text reappears as user speech.
+- Owner applied ES7210 mic_gain 18 instead of inherited 36. Logs 19 and 20
+  have lower mic levels, without full-scale peaks in probe windows, yet feedback
+  persists. Log 20 at 10:28:09: mic RMS 434, reference 170, output 428;
+  10:28:10: mic 382, reference 279, output 377. Gain reduction is not a fix.
+- Supplied session 254a82c2 WAVs: input PCM16 mono 16 kHz, 71.424 s, peak
+  18001; output PCM16 mono 24 kHz, 46.644 s, peak 28681. They are server-side
+  recordings, not synchronized raw-mic / actual-TX / processed-mic tracks;
+  no device AEC reference delay estimate is established from them.
+- Pinned Audio Stack applies software volume before deriving reference, so
+  user-volume awareness is already present. Reference is saved only on full
+  speaker frames; its timing versus actual DMA playback still needs measurement.
+- Software master curve defaults to -49 dB at the lower end. At 50%, gain is
+  about -24.5 dB / 0.060 amplitude, explaining strong digital attenuation but
+  not measuring acoustic loudness. Volume UX and AEC timing are separate work.
+- Owner requires comfortable volume control without manual AEC retuning;
+  acceptance must include multiple audible levels and changes during playback.
+
+## Coarse envelope delay probe, 2026-10-11
+
+- Compiled on ESPHome 2026.9.1: flash 1,242,391 bytes; static DIRAM 126,415
+  / 341,760 bytes. Device runtime and CPU overhead are not yet measured.
+- Positive/negative lag and gain scaling were checked with deterministic
+  synthetic envelopes; constant silence is rejected. This does not validate
+  real-world echo delay estimation or solve echo cancellation.
+- Added 4 ms envelope correlation over +/-256 ms, including alternative peak
+  reporting. No audio delay or microphone gating is applied by the probe.
+- Boot sets ADC gain 18 dB, output unity and volume floor -30 dB. Real DMA
+  timestamps and sample-continuous TX reference changes remain outstanding.
+
+## Log 21 and fixed-reference-delay experiment
+
+- Log 21 candidates: 176 ms (0.822), 168 ms (0.822), 164 ms (0.951),
+  160 ms (0.760). The 204 ms candidate has a close alternative (0.844 vs
+  0.814); low-correlation candidates are not reliable delay measurements.
+- Added fixed 160 ms reference delay ahead of AEC; diagnostic correlation now
+  measures residual lag. Mic and speaker paths are not intentionally delayed.
+- Synthetic impulse verified exact 2560-sample shift across frame/ring
+  boundaries. ESPHome 2026.9.1 compile passed: flash 1,242,667 bytes,
+  static DIRAM 132,567 / 341,760 bytes. Physical effectiveness pending.
+- This delay is not a hardware constant. Buffer configuration, scheduling,
+  conversion and signal-processing latency can contribute. Load dependence
+  and exact DMA alignment have not been measured.
+
+## First successful echo-suppression device test: log 22
+
+- Owner reports no self-interruption with the fixed 160 ms reference delay
+  (configuration from commit 002c866). Response playback spans approximately
+  11:01:55 through 11:02:19 without subsequent server barge_in in the supplied
+  log. The initial barge_in at 11:01:51 precedes the user's request.
+- At 11:01:56 pre-AEC mic RMS 1195 becomes output RMS 2; at 11:02:08,
+  1129 becomes 16; at 11:02:15, 1810 becomes 95. These are observed window
+  level reductions, not calibrated ERLE measurements.
+- Strong residual envelope-lag estimates mostly cluster near zero (e.g. 4 ms
+  at correlation 0.971, 0 ms at 0.842). Other windows are ambiguous/outlying.
+- This supports reference alignment as a material cause of the previous echo
+  failure. One successful session does not validate all volumes/load conditions.
+- Preserve this firmware as the experimental baseline. Next: deliberate human
+  barge-in during playback, comfortable volume changes, repeated start/stop and
+  reboot. No product release or adaptive alignment claim yet.
+
+## Hardware-reference experiment: owner validation pending
+
+- Final YAML compiled on ESPHome 2026.9.1 / ESP-IDF 5.5.5, with
+  esp_codec_dev 2.0.0-beta5: flash 1,301,287 bytes; static DIRAM 126,847 /
+  341,760 bytes. Generated configuration confirms MIC3 gain channel index 2.
+  Compilation is not physical validation; runtime memory headroom is unmeasured.
+- Log 23 failed deliberate human interruption at maximum volume despite
+  continuous uplink. Mic peaks again reached full scale; see
+  AUDIO_REFERENCE_RESEARCH.md for source comparison and schematic evidence.
+- New independent configuration: firmware/stackchan-hwref.example.yaml.
+  ES7210 codec-dev TDM capture, slots 0/1 provisionally mic/reference, all four
+  slot levels exposed. ADC mic gain 6 dB, MIC3 feedback gain 0 dB. No software
+  reference delay. Existing 160 ms configuration is preserved.
+- Copy the whole YAML into ESPHome; dependencies are pinned remote sources.
+  Retain local Wi-Fi secrets and any installation-specific API/OTA settings.
+  No uploaded headers or local components are required.
+- Capture logs from boot. Verify normal input and intelligible playback first
+  at a comfortable level, then maximum intended level. Stop if audio is
+  distorted; this may indicate bus/slot incompatibility, not an AEC setting.
+- During an active session, speak with playback silent, then request a long
+  response and remain silent for its first seconds. Slot 1 should primarily
+  follow speaker output rather than room speech. Record input/output WAVs and
+  the log, including slot levels, aec_probe and Audio Diagnostics.
+- Say a distinctive interruption phrase during the response. Check preserved
+  words in recorded input, server barge_in, and immediate playback cancellation
+  separately. A quiet processed mic alone is not success.
+- Qualification also requires several audible volumes, volume changes during
+  playback, repeated sessions and reboot. Hardware effectiveness is unverified.
+
+## Hardware-reference startup failure: log 24
+
+- Owner test of the hardware-reference YAML fails before microphone capture.
+  At 19:13:03 and 19:13:17 TX/RX TDM initialization succeeds, then codec-dev
+  reports layout resolution error 0x106 and Audio Stack reports
+  `Cannot query effective TX codec layout`. Backend open fails and I2S closes.
+- Pipecat WebSocket connects at 19:13:09. Subsequent no-frames warnings and
+  the 7000 ms no-speech timeout are consequences of the unavailable microphone,
+  not evidence of Gemini/VAD failure.
+- Source confirms Audio Stack creates a TX codec-dev handle even without an
+  output codec, then unconditionally queries its layout. The bundled codec-dev
+  sample-format layout resolver returns NOT_SUPPORT without a codec interface.
+  AW88298 is intentionally owned by the separate official driver; adding an
+  unrelated output codec or ignoring all layout failures would be incorrect.
+- Hardware-reference configuration is currently blocked at startup. Compilation
+  passed but did not validate this runtime path. No conclusion about actual
+  reference mapping, echo cancellation or double-talk can be drawn from log 24.
+  A driver correction for codec-less TX layout handling is required before
+  repeating the hardware test; clean builds or volume changes do not address it.
+
+## Log 24 driver correction
+
+- Vendored Audio Stack at upstream 0482d741a938378ef948e3b8f3dd31536f9f2cc9
+  with its MIT license. Only codec_dev_backend.cpp differs from the upstream
+  component source; see components/esp_audio_stack/CHAN_PATCH.md.
+- Codec-less TX uses live bus validation for single-slot 16-bit TDM. It keeps
+  the diagnostic memory map zero/unavailable instead of querying missing codec
+  channel identities. Rate, data width, slot count/mask and slot width checks
+  remain active. RX and managed TX retain mandatory codec layout queries.
+- 17 compile-time C++ mock scenarios exercise the production read_layout_
+  body. They include the reported failure, bus query failures, format/mask
+  mismatches, and RX/managed-TX layout failures/successes. Patched code passes;
+  unpatched code fails scenario 0. This tests control flow, not physical I2S.
+- YAML fetches the patched component at repository commit
+  4541119291c9b67b6fa44f75fe27e04ae0480026. Remote configuration validation
+  passed. The alternate build directory avoids a local Windows cleanup failure;
+  clean building itself is not the runtime fix.
+- Full compile passed with ESPHome 2026.9.1 / ESP-IDF 5.5.5, first with local
+  source and then with the exact delivered YAML using the GitHub dependency.
+  Flash: 1,301,575 bytes; static DIRAM: 126,847 / 341,760 bytes.
+  The delivered file was compiled under an ignored local filename to reuse
+  its build metadata; file contents were identical. No robot was flashed here.
+- Owner retest must confirm `TX externally managed: validated I2S bus`,
+  audio-stack startup, actual mic frames and audible output. Hardware reference
+  effectiveness and human interruption still require the earlier test plan.
+
+
+## Log 25: capture works, amplifier output absent (2026-10-12)
+
+- The relocated workspace is C:/My Projects/Codex/Chan - Stackchan HA companion;
+  the nested repository remains the project checkout.
+- Owner reports that speech is heard by Pipecat but replies are inaudible.
+  Log 25 starts after boot; it cannot establish actual amplifier register values.
+- At 19:01:00 the user's words are transcribed correctly. Pipecat receives
+  response PCM and drains its playback queue. RX/TX are running, codec backend
+  is open, and there is no I2S error. The log-24 startup correction is effective.
+- During both response windows the reference RMS stays near 1 (peaks 5-6),
+  while room mic signal also remains low. This supports absence of amplifier
+  output but does not by itself identify clock configuration versus mute/power.
+- Source identifies a format mismatch: TDM TX has four 16-bit slots and
+  half-frame WS (64 BCLK/frame, 32 BCLK per WS phase), while the official
+  AW88298 setup selects I2SBCK=00 (32 BCLK/frame). Its I2SFS is already 32 bits.
+  Slot-0 16-bit TX followed by zero slots can be received as 32-bit left-channel
+  standard I2S; the amplifier's clock ratio must match the 64-clock frame.
+- The next YAML changes AW88298 register 0x06 bits 7:4 to 1110 (32-bit data,
+  64fs BCLK), normally 0x14C8 -> 0x14E8. It retains standard two-slot amplifier
+  mode and TDM microphone capture. It checks the inherited format before
+  writing and verifies readback. A failed check blocks Pipecat Start.
+- Added amplifier diagnostics for registers 0x01/04/05/06/07/0C and software
+  volume/mute. No interrupt-status register is read/cleared. Speaker Test stops
+  Pipecat and feeds a one-second 1 kHz PCM tone at -18 dBFS with the current
+  user volume. Mic capture runs during the tone for reference diagnostics.
+  Accepted-byte count is queue acceptance, not proof of audible playback.
+- First owner test: Speaker Test, then Audio Diagnostics, then Pipecat Start
+  and a short question. Provide the log from boot. If output returns, then
+  test deliberate barge-in and changing audible volumes. Physical effectiveness
+  of the clock correction is pending.
+
+Primary evidence:
+- Awinic AW88298 datasheet v1.6, I2SCTRL and I2SCFG1 registers, pages 33-35:
+  https://doc.awinic.com/doc/20230609wm/78b5dc17-223f-4371-9a31-a6640f883a0c.pdf
+- Official BSP driver at the pinned revision:
+  https://github.com/m5stack/esphome-yaml/blob/cc708ddcc9dea7cfc746b408d2495ce281bbf2d2/components/aw88298/aw88298.cpp
+- ESP-IDF 5.5.5 i2s_hal_tdm_set_tx_slot: automatic WS width is half the frame;
+  inactive slots retain the frame width when skip_mask is false.
+
+Build validation:
+- The exact delivered YAML compiled successfully with ESPHome 2026.9.1 and
+  ESP-IDF 5.5.5. Static RAM: 127,631 / 341,760 bytes (37.3%); flash:
+  1,306,819 / 8,126,464 bytes (16.1%). No robot was flashed.
+- On this Windows workspace, the generated sections.ld batch invocation passed
+  its shell error-handling suffix as ldgen arguments. Running the same generated
+  ldgen command directly as an argument list produced sections.ld; rerunning
+  ESPHome compile then succeeded. No application or toolchain source was changed
+  for this workaround. A clean local Windows build may encounter it again;
+  this does not validate that batch path. Home Assistant Linux builds do not
+  use this Windows batch invocation.
+
+## Log 26: first owner-confirmed duplex conversation and interruption (2026-10-12)
+
+- Owner reports a substantial improvement: no observed self-interruption and
+  successful human interruption. This is the first physical proof of concept
+  for the hardware-reference configuration, not a release qualification.
+- Log 26 (19:35:14-19:37:14) shows AW88298 I2SCTRL=0x14E8,
+  clock_ready=YES, master=1.000, speaker_volume=1.000 and muted=NO.
+  Duplex RX/TX runs with i2s_error=NO; microphone uplink continues during replies.
+- Hardware reference now carries playback signal (e.g. RMS 2913 at 19:36:57).
+  In that interval raw mic RMS is 2039 and AEC output RMS is 159. This is
+  evidence of signal attenuation, not a calibrated echo-reduction measurement.
+- Server barge_in events occur during replies; at 19:37:05 the user's stop-like
+  utterance is transcribed and the assistant acknowledges stopping. Logs alone
+  cannot classify every interrupt as intentional or measure audible stop latency.
+- Remaining observations: one WebSocket disconnect at 19:36:12, two downstream
+  underrun warnings, audio-gap warnings, and an 82 ms microphone operation.
+  Their audible effects and causes are not established. No firmware change is
+  made from these warnings alone.
+- Preserve source baseline 5ec1eb8. Before release, repeat at multiple audible
+  volumes and while changing volume, with silent listening and deliberate
+  interruptions, repeated session starts/stops, and a longer conversation.
+  Record distances, interruption success/latency and any audible stutter.
+
+## Log 27 and recorded input: quiet uplink and lost startup (2026-10-12)
+
+- Owner reports that ordinary speech does not reliably interrupt; louder stop
+  works. Server barge_in occurs at 21:01:05 and 21:01:16, but the returned
+  transcripts do not match the owner's intended stop request. At 21:01:26,
+  stop is transcribed and acknowledged. This qualifies log 26's success:
+  interruption exists but is not consistently usable.
+- At 20:59:55 start_session opens the microphone and sends wake. At 20:59:56,
+  transport write fails and the WebSocket disconnect closes the microphone.
+  At 20:59:57 the connection returns idle. A second start at 21:00:10 opens
+  capture successfully. Source reconnects the transport without retaining the
+  initial start request. The transport failure's underlying cause is unknown.
+- Supplied input WAV: mono PCM16, 16 kHz, 113.312 seconds, absolute peak 3506.
+  Many five-second blocks have RMS 20-40 (-64 to -58 dBFS); these include silence
+  and are not isolated speech loudness measurements. The log also shows low
+  microphone levels before playback. Numerical analysis does not establish
+  intelligibility, exact utterance boundaries, or whether AEC removed syllables.
+- New separate stackchan-hwref-uplink.example.yaml retains the clock-corrected
+  baseline and adds native ESPHome MicrophoneSource gain_factor=4 (+12.04 dB)
+  AFTER AEC, only on the Pipecat uplink. The entire supplied WAV would fit PCM16
+  at that gain (maximum 14024). New speech can still clip; residual echo and
+  noise are amplified too. This is a controlled test, not a verified AEC fix.
+  pipecat_mic_gain=1 restores baseline uplink gain for comparison. aec_probe
+  out levels remain pre-gain; Pipecat uplink max_abs and recording are post-gain.
+- Pipecat Start now waits up to ten seconds for the transport, then observes
+  the first five seconds. If a disconnect occurs there, it waits up to ten
+  seconds for reconnection and retries start once. A 500 ms settling delay
+  is not an explicit server hello acknowledgement. This bounded workaround
+  does not provide general session recovery or fix the transport failure.
+  Stop, Speaker Test and AEC-mode controls cancel any pending retry.
+- Owner test: after idling, press Start once and verify a conversation begins;
+  repeat Stop/Start, and check that Stop while waiting never reopens capture.
+  During a long reply say the same polite stop request at ordinary loudness.
+  Compare gain 4 with gain 1 at the same distance and speaker volume; include
+  silence during replies to detect renewed self-interruption. Provide log and
+  Pipecat input recording. Keep the earlier YAML for rollback.
+
+Build result for the new uplink test:
+- ESPHome configuration validation and full compilation passed (2026.9.1,
+  ESP-IDF 5.5.5). Static RAM 128,207 / 341,760 bytes; image 1,308,331 bytes.
+- Used a distinct build directory after Windows failed to clean the prior cache.
+  The sections.ld Windows batch suffix issue recurred; direct invocation of the
+  unchanged generated ldgen command, as documented above, completed generation.
+  The subsequent exact-YAML compile succeeded. No hardware flashing was done.
+
+## Full AFE reference port (2026-10-13)
+
+- Added stackchan-full-afe.example.yaml, preserving the earlier experiments.
+  See AFE_PORT.md for pinned donor provenance, reused settings, adaptation and
+  device acceptance procedure. No transport repair is claimed.
+- Verified AFE settings against donor c86ecd3c5124db85181c03ad35aec6578b82b849:
+  every donor esp_afe field except its id matches. Explicit post-AGC support
+  is additionally enabled. Slot selection is 0/2 with reference 1, and the
+  old AecProbe wrapper is absent; AFE owns its asynchronous processing path.
+- ESPHome 2026.9.1 configuration validation and final full compile passed,
+  using ESP-IDF 5.5.5 and ESP-SR 2.5.5. RAM: 150,399 / 341,760 bytes (44.0%);
+  flash image: 1,843,035 / 8,126,464 bytes (22.7%). Dynamic AFE allocations
+  and runtime scheduling still need hardware validation.
+- The previously documented Windows sections.ld batch invocation problem
+  recurred. Direct invocation of the generated ldgen arguments succeeded;
+  the subsequent exact delivered YAML build passed, including AFE diagnostics.
+- No robot was flashed. Speech preservation, channel-2 acoustic capture,
+  echo suppression across volumes and reliable barge-in remain pending.
+
+- USB browser installer later reported an ESP32-C6 expectation. esptool
+  image-info independently identifies the compiled full-AFE OTA image as
+  ESP32-S3, chip ID 9, 16 MB flash, valid checksum/hash. The delivered YAML
+  now declares variant esp32s3 explicitly instead of inheriting it from BSP.
+  This does not establish why the browser expected C6.
+
+
+## Full AFE performance-profile test (2026-10-13)
+
+- Log 31 shows sustained AFE input drops and output misses. The supplied input
+  WAV contains 523 entirely zero 256-sample blocks out of 874 (59.84%).
+  This establishes an audio delivery deficit, not its underlying cause.
+- Added stackchan-afe-perf.example.yaml with the pinned donor's compiler,
+  cache and PSRAM execution/allocation settings. CPU is explicitly 240 MHz;
+  the previous effective CPU frequency was already 240 MHz.
+- Compared YAML structurally: esp_afe, esp_audio_stack and va_pipecat remain
+  unchanged. New SDK options and compiler profile match the pinned donor.
+  Generated effective sdkconfig confirms the requested performance settings.
+- ESPHome 2026.9.1 configuration validation and full compilation passed with
+  ESP-IDF 5.5.5. Static RAM: 170,863 / 341,760 bytes (50.0%). Flash image:
+  1,983,171 / 8,126,464 bytes (24.4%).
+- The previously documented Windows sections.ld batch suffix issue recurred;
+  directly executing the unchanged generated ldgen arguments and rerunning
+  the exact YAML compile succeeded. No source/toolchain patch was required.
+- esptool image-info identifies the factory image as ESP32-S3, chip ID 9,
+  16 MB flash, with valid bootloader checksum/hash.
+- No hardware flashing was performed. Whether this profile resolves the
+  sustained deficit, restores replies and preserves barge-in remains untested.
+  Collect Audio Diagnostics, a full session log and Pipecat input recording.
+
+
+## AFE timing and CPU diagnostic test (2026-10-17)
+
+- Owner log 32 confirms remaining missing processed frames and input drops.
+  Supplied input WAV has 678 all-zero 256-sample blocks out of 3993 (16.98%).
+  This is not proof of CPU saturation or a specific cause of incorrect text.
+- Added stackchan-afe-profile.example.yaml and a pinned diagnostic esp_afe fork.
+  Structural comparison verifies unchanged esp_afe, esp_audio_stack, va_pipecat,
+  microphone, speaker, script and button blocks relative to afe-perf.
+- Source review confirms the original feed_us timing covers memcpy, not ESP-SR
+  feed processing. Added queue-read wait, outside-reader wall time, output
+  callback cadence and per-task CPU runtime deltas. See AFE_PROFILING.md for
+  interpretation, profiling overhead and the owner test protocol.
+- Effective generated sdkconfig confirms performance optimization plus
+  FreeRTOS trace, runtime statistics and ESP timer runtime clock are enabled.
+- Physical results and resource reserve for future display/motor/camera work
+  remain unverified. No robot flashing was performed.
+
+- Final exact-YAML compilation passed with ESPHome 2026.9.1 / ESP-IDF 5.5.5.
+  Static RAM: 172,423 / 341,760 bytes (50.5%); flash: 1,987,299 / 8,126,464
+  bytes (24.5%). This does not measure runtime CPU or dynamic allocations.
+- The known Windows sections.ld batch suffix failure recurred. Direct invocation
+  of the generated ldgen arguments succeeded; the subsequent full ESPHome
+  compile passed without changing source or delivered YAML.
+- esptool confirms the application OTA image is ESP32-S3, chip ID 9, 16 MB flash,
+  with valid checksum/hash. Config hash: 0x0dfe9d1e.
+
+
+## Core-balance candidate (2026-10-17, log 33)
+
+- Owner reports normal-voice interruption still failed. Log eventually records
+  barge_in at 13:12:44 and recognizes "stop" at 13:12:45; this does not establish
+  how many earlier attempts were missed. Supplied Input WAV: 555 all-zero
+  256-sample blocks of 3298 (16.83%), mono PCM16 / 16 kHz, 52.768 seconds.
+- Sustained reply intervals: IDLE0=0%, IDLE1=55-56.5%, afe_feed=74.5-74.6% of
+  one CPU, audio_stack=17.3-17.4%. Reader-external wall time averages 81-82 ms
+  versus 64 ms input budget, queue read waits average 29-33 us. Input drops
+  and output misses persist. This supports contention on core 0, not complete
+  exhaustion of both cores. CPU demand may rise when throughput recovers.
+- New stackchan-afe-balanced.example.yaml moves only audio_stack from default
+  core 0 to core 1. Priority remains 19; AFE stays on its previous cores and
+  all gains/processing/transport/diagnostics remain identical. New build path
+  avoids a Windows PermissionError during cleanup of the prior build cache.
+- Structural comparison confirms the only runtime YAML difference is task_core.
+  Hardware acceptance and normal-voice interruption are pending. See
+  AFE_PROFILING.md for the comparison protocol and acceptance criteria.
+
+- Exact balanced YAML full compile passed: ESPHome 2026.9.1 / ESP-IDF 5.5.5.
+  Static RAM 172,423 / 341,760 bytes; image 1,987,291 / 8,126,464 bytes.
+  Generated source confirms duplex_audio->set_task_core(1) and AFE feed core 0.
+- Known Windows sections.ld batch suffix issue required direct execution of
+  generated ldgen arguments; subsequent exact-YAML compile passed unchanged.
+- esptool verifies ESP32-S3 application image, chip ID 9, 16 MB, valid checksum
+  and hash. Config hash 0x897de171. No hardware flashing performed.
+
+
+## Local audio lab (2026-10-17)
+
+- Owner explicitly approved password-protected HTTP WAV downloads on the
+  trusted LAN after automatic review rejected an unauthenticated server.
+  All download routes now require Basic authentication; unchanged placeholder
+  credentials prevent server startup. No real credentials committed.
+- Added bounded 8-second four-channel capture inside AFE process, after input
+  conversion and after output processing. Input/output acoustic alignment is
+  delayed by AFE, not sample-synchronous. PCM format follows the existing
+  interleaved microphone input layout verified in audio_pipeline.cpp.
+- Added quiet, local speech playback/capture and local playback/no-copy tests.
+  The quiet post-AFE recording supplies the playback stimulus. No voice client
+  or external audio URL is used. AFE and bus blocks match the balanced YAML.
+- Added ESPHome runtime_stats to identify component-loop time, alongside the
+  existing FreeRTOS task metrics. Source review confirms it also reports main
+  loop overhead. Profiling and capture overhead must be measured on hardware.
+- Source review: fixed PSRAM allocation, bounded frame copy, no allocation or
+  network sends in audio callback; download excludes capture-buffer mutation;
+  recording/full buffer stays unavailable until test completion. WAV headers
+  encode mono PCM16/16 kHz, and each route deinterleaves the selected channel.
+- ESPHome configuration/code generation passed. Structural checks confirm no
+  va_pipecat block, unchanged AFE/bus, four Lab buttons and pinned dependencies.
+- Authentication over HTTP is LAN-only usage by agreement, not encryption.
+  Downloads, waveform fidelity, local playback and timing need physical tests.
+
+- Exact local-lab YAML full compile passed: ESPHome 2026.9.1 / ESP-IDF 5.5.5.
+  Static RAM 172,451 / 341,760 bytes; image 1,851,067 / 8,126,464 bytes.
+  Capture/stimulus PSRAM buffers are allocated at runtime, not included in static RAM.
+- Known Windows sections.ld batch suffix issue required direct execution of
+  the generated ldgen arguments; subsequent exact-YAML compile passed unchanged.
+- esptool verifies ESP32-S3, chip ID 9, 16 MB, valid checksum and hash.
+  Config hash 0x1b3c682f. No hardware flashing or acoustic validation performed.
+
+
+## Local audio lab v2 (2026-10-20)
+
+- Compared exact official BSP, stock codec, Dravix and Waveshare source snapshots;
+  see ES7210_GAIN_AUDIT.md. Our 6 dB was 30 dB below official StackChan BSP.
+- New standalone YAML sets microphones to 36 dB, preserves reference at 0 dB,
+  AFE settings, PCM format, driver pins and all remote dependency pins.
+- Added read-only ADC register diagnostics after codec startup, native slot RMS
+  logging and captured PCM peak/RMS/near-clipping summaries after recording.
+  Manual Stop explicitly reports early termination and retains partial quiet stimulus.
+- YAML structure checked; generated C++ confirms configure_es7210_codec(0x40,
+  0x07, 36.0f, true, 2, 0.0f). No Pipecat component or new local includes.
+- Full exact-YAML compile passed with ESPHome 2026.9.1 and ESP-IDF 5.5.5.
+  Static RAM 172755/341760; image 1855803/8126464; config hash 0xd13075fe.
+  Separate v2 build directory avoids Windows cleanup permission error. Known
+  ldgen batch suffix issue required direct execution of generated ldgen args.
+- esptool: ESP32-S3 chip ID 9, 16MB, checksum/hash valid. No device flashing.
+  Hardware gain readback, speech quality, clipping and AEC performance remain untested.
+
+
+## Native 16 kHz candidates (2026-10-20)
+
+- Owner requested immediate removal of input 48->16 conversion; both new lab
+  and Pipecat YAMLs use native 16000 Hz shared RX/TX and 36 dB microphone gain.
+- Matched AW88298 driver rate with an explicit package !extend override. Source
+  table maps 16 kHz to code 3; boot guard expects 0x1403 before 64fs patch,
+  yielding 0x14e3. Slot layout, physical pins and reference gain stay unchanged.
+- Lab stimulus uses direct 16000 PCM instead of 3x repetition. Live output
+  resampler targets 16000 for va_pipecat's 24000 PCM. Native microphone transport
+  and AFE remain 16000. Built-in resampler enables prefiltering for downsampling.
+- Configuration and generated C++ verified for both: DAC/bus/output rate=16000,
+  ES7210 gains 36/0; live target resampler=16000. All remote dependencies pinned.
+- Hardware validation remains pending, including clock readback, quiet speech,
+  playback/reference levels, clipping and interruption. See NATIVE_16K.md.
+
+- Both exact YAMLs fully compiled with ESPHome 2026.9.1 / ESP-IDF 5.5.5.
+  Local lab: static RAM 172755/341760, image 1855819/8126464, config 0xbb9d1bac.
+  Pipecat: static RAM 172423/341760, image 1988663/8126464, config 0x6592f216.
+- Both images verified by esptool as ESP32-S3 (chip ID 9), valid checksum/hash.
+  Windows ldgen suffix workaround applied to both generated build commands;
+  subsequent unchanged-YAML compilation succeeded. No flashing performed.
+
+
+## ESPHome 2026.10 compatibility (2026-10-22)
+
+- Owner chan-install.txt reports ESPHome 2026.10.0 / ESP-IDF 5.5.6. Compilation
+  failed before upload: CapsRingBuffer treated base handle_ as a field, while
+  2026.10 exposes handle_() computed from the static structure. Previous full
+  builds were on 2026.9.1; min_version does not pin the build tool version.
+- Reviewed official 2026.10.0 ring_buffer.h/.cpp. New destructor checks storage_,
+  old one checks handle_. Added a versioned native-handle accessor, preserved
+  old handle initialization, and clear storage_/size_ after derived cleanup so
+  base destruction cannot delete/free twice. Allocation failure leaves no storage.
+  Reinstallation of a live buffer is rejected to prevent leakage.
+- Updated both native-16k YAMLs to audio stack 80e0d8c96044ec3c1c5ba370ac88354046952611.
+  Separate -oct build paths avoid stale generated files; no audio tuning changes.
+- Added tests/test_ring_buffer_compat.py: actual production header compiled with
+  exact upstream 2026.9.1 and 2026.10.0 headers, debug off/on (4 passes).
+  FreeRTOS/heap declarations are stubs: this is API compatibility validation,
+  not runtime allocator or on-device audio testing.
+- Official source: https://github.com/esphome/esphome/blob/2026.10.0/esphome/components/ring_buffer/ring_buffer.h
+  and corresponding ring_buffer.cpp.
+- Both updated YAMLs fully compiled with ESPHome 2026.10.0 / ESP-IDF 5.5.6.
+  Lab: static RAM 172091/341760, image 1853171/8126464, config 0xe32a4e9e.
+  Pipecat: static RAM 171255/341760, image 1973615/8126464, config 0x1411f8e8.
+- Local Windows ldgen batch suffix issue reproduced on both builds; executing
+  generated ldgen arguments directly and recompiling unchanged YAMLs succeeded.
+- esptool verified both images: ESP32-S3 chip ID 9, 16 MB, valid checksum/hash.
+  No flashing performed. Native-16k hardware behavior remains unverified.
+
+## Owner native-16k Lab 1/2 and buffered candidate (2026-10-22)
+
+- Log 39: 128000 samples/channel, no missing blocks or clipping, native16k
+  amplifier readback 0x14e3, ADC microphone gain nibble13 (36dB), reference0.
+  Quiet raw RMS -26.88/-26.62 dBFS; processed -18.14, peak -1.80 dBFS.
+- Log 40: mic0 clipped22.58%, mic2 clipped20.96%; reference peak -12.79dBFS.
+  Processed RMS -10.81dBFS is not an echo-reduction score (AGC/nonlinear input).
+  Mid-playback short-frame counts87-94/128; 8s PCM queued over about10s.
+  AFE feed task consumed85% of one core in a window overlapping playback.
+- Added buffered native16k lab; design, upstream source comparison, test limits
+  and test instructions in BUFFERED_AUDIO_LAB.md. Hardware validation pending.
+- Final buffered YAML full compile passed: ESPHome2026.10.0 / ESP-IDF5.5.6,
+  config0xadeb4280, static RAM172587/341760, image1855715/8126464 bytes.
+  Generated C++ confirms ADC18/reference0, speaker ring500ms, normalization and
+  time/completion guards. ESP32-S3 chip9, flash16MB, valid checksum/hash.
+- New build path avoids Windows cleanup permissions. Known local ldgen command
+  suffix required direct invocation of its generated arguments before rebuilding.
+  No device flashing. Acoustic timing, clipping and AEC remain hardware tests.
+
+## Documentation handoff (2026-10-22)
+
+- Consolidated current state, experiment/firmware catalog, pinned references and
+  build notes. README selects only the buffered native16k lab as the active test.
+- Buffered lab remains compile-validated only; no owner results received yet.
+- Clarified owner protocol: roughly two seconds of silence, a short sentence,
+  wait for END. No stopwatch or exact seven-second cutoff is required.
+- Corrected download guidance: exact WAV routes on port 8088; no HTTP index route.
+- Added local workspace-parent AGENTS.md pointing into repository/AGENTS.md.
+  This parent file is outside Git; repository handoff is portable through Git.
+- Documentation-only update: no firmware, gain, pins or dependency changes.
+
+## Public release withdrawal (2026-10-22)
+
+- Owner explicitly requested removing public releases while development continues.
+  GitHub releases v0.1.1 and v0.1.2 were changed to drafts; authenticated API
+  verification reports zero published releases. Both tags remain. Each release
+  had zero uploaded assets. Metadata backed up locally under ignored .runtime/.
+- Main-branch README commit2e82c51 clearly identifies experimental development
+  with OpenAI Codex, owner hardware testing and the active development branch.
+  Historical main content is labeled as an earlier snapshot. No firmware merged
+  into main. Development README and agent policy updated consistently.
+
+## Branch consolidation (2026-10-22)
+
+- Owner approved main as the current development branch and archival of older
+  branches. All five pre-consolidation tips (including old main) were preserved
+  by annotated archive/2026-10-22 tags and verified on GitHub.
+- Merged main and full-duplex histories. README conflict resolved using the
+  current project documentation while retaining Codex/experimental disclosure
+  and withdrawn-release policy. No firmware edits or new hardware claims.
+- Development instructions now target main; archived refs listed in BRANCH_ARCHIVE.

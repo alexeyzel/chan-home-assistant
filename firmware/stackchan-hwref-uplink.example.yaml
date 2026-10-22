@@ -1,0 +1,506 @@
+# Experimental startup recovery and post-AEC microphone gain test. Copy the entire YAML into ESPHome.
+substitutions:
+  name: stackchan-test
+  friendly_name: StackChan Test
+  # 1 = baseline, 4 = +12 dB. Does not change speaker/reference volume.
+  pipecat_mic_gain: "4"
+
+packages:
+  stackchan:
+    url: https://github.com/m5stack/esphome-yaml
+    files: [examples/kit/stackchan-bsp.factory.yaml]
+    ref: cc708ddcc9dea7cfc746b408d2495ce281bbf2d2
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/m5stack/esphome-yaml
+      ref: cc708ddcc9dea7cfc746b408d2495ce281bbf2d2
+      path: components
+    components: [axp2101, aw88298, aw9523b, si12t, m5ioe1, ftservo, scs9009]
+  - source:
+      type: git
+      url: https://github.com/n-IA-hane/esphome-audio-stack
+      ref: 0482d741a938378ef948e3b8f3dd31536f9f2cc9
+      path: esphome/components
+    components: [esp_aec]
+  - source:
+      type: git
+      url: https://github.com/alexeyzel/chan-home-assistant
+      ref: 4541119291c9b67b6fa44f75fe27e04ae0480026
+      path: components
+    components: [esp_audio_stack]
+  - source:
+      type: git
+      url: https://github.com/kyvaith/pipecat-homeassistant
+      ref: a538d1d1bacc8609061719f0b05c1622147ccb4b
+      path: components
+    components: [va_pipecat]
+
+esphome:
+  min_version: 2026.9.1
+  build_path: stackchan-hwref-uplink-build
+  compile_process_limit: 4
+  on_boot:
+    - priority: 1000
+      then:
+        - lambda: |-
+            using namespace esphome::esp_audio_stack;
+            class AecProbe : public AudioProcessor {
+             public:
+              AudioProcessor *inner;
+              uint32_t frames = 0, failures = 0, zero_ref = 0;
+              uint64_t count[3] = {}, energy[3] = {};
+              int peak[3] = {};
+              float mh[256] = {}, rh[256] = {};
+              unsigned pos = 0, filled = 0, bins = 0;
+              uint32_t last_process_ms = 0;
+              uint32_t ma = 0, ra = 0, sample_count = 0;
+              void capture(const int16_t *m, const int16_t *r, size_t n, size_t stride) {
+                if (!m || !r) return;
+                for (size_t i = 0; i < n; i++) {
+                  int mv = m[i * stride], rv = r[i];
+                  ma += mv < 0 ? -mv : mv;
+                  ra += rv < 0 ? -rv : rv;
+                  if (++sample_count == 64) {
+                    mh[pos] = ma / 64.0f; rh[pos] = ra / 64.0f;
+                    pos = (pos + 1) % 256;
+                    if (filled < 256) filled++;
+                    bins++;
+                    ma = ra = sample_count = 0;
+                  }
+                }
+              }
+              void estimate() {
+                if (filled < 256 || bins < 512) return;
+                bins = 0;
+                float score[129] = {};
+                float best = -2.0f;
+                int best_lag = 0;
+                for (int lag = -64; lag <= 64; lag++) {
+                  float sm = 0, sr = 0, mm = 0, rr = 0, mr = 0;
+                  for (int t = 64; t < 192; t++) {
+                    float m = mh[(pos + t) % 256];
+                    float r = rh[(pos + t - lag) % 256];
+                    sm += m; sr += r; mm += m*m; rr += r*r; mr += m*r;
+                  }
+                  float vm = mm - sm*sm/128.0f;
+                  float vr = rr - sr*sr/128.0f;
+                  float c = -2.0f;
+                  if (vm > 128.0f && vr > 128.0f)
+                    c = (mr - sm*sr/128.0f) / sqrtf(vm*vr);
+                  score[lag+64] = c;
+                  if (c > best) { best = c; best_lag = lag; }
+                }
+                float other = -2.0f;
+                for (int lag = -64; lag <= 64; lag++) {
+                  if (abs(lag-best_lag) > 3 && score[lag+64] > other)
+                    other = score[lag+64];
+                }
+                if (best < -1.0f) {
+                  ESP_LOGI("aec_delay", "insufficient varying mic/reference signal");
+                } else {
+                  ESP_LOGI("aec_delay", "envelope candidate=%dms corr=%.3f alternative=%.3f edge=%s; positive=mic lags ref; estimate only",
+                    best_lag*4, best, other, abs(best_lag)==64 ? "YES" : "NO");
+                }
+              }
+              explicit AecProbe(AudioProcessor *p) : inner(p) {}
+              bool is_initialized() const override { return inner->is_initialized(); }
+              FrameSpec frame_spec() const override { return inner->frame_spec(); }
+              uint32_t frame_spec_revision() const override { return inner->frame_spec_revision(); }
+              FeatureControl feature_control(AudioFeature f) const override { return inner->feature_control(f); }
+              bool set_feature(AudioFeature f, bool e) override { return inner->set_feature(f, e); }
+              ProcessorTelemetry telemetry() const override { return inner->telemetry(); }
+              bool reconfigure(int t, int m) override { return inner->reconfigure(t, m); }
+              void set_processing_active(bool a) override { inner->set_processing_active(a); }
+              bool wants_background_input() const override { return inner->wants_background_input(); }
+              void measure(int k, const int16_t *data, size_t n, size_t stride) {
+                if (!data) return;
+                for (size_t i = 0; i < n; i++) {
+                  int v = data[i * stride];
+                  int av = v < 0 ? -v : v;
+                  if (av > peak[k]) peak[k] = av;
+                  energy[k] += static_cast<int64_t>(v) * v;
+                }
+                count[k] += n;
+              }
+              bool process(const int16_t *mic, const int16_t *ref, int16_t *out, uint8_t channels) override {
+                const auto spec = inner->frame_spec();
+                uint32_t now = millis();
+                if (now - last_process_ms > 250)
+                  pos = filled = bins = ma = ra = sample_count = 0;
+                last_process_ms = now;
+                capture(mic, ref, spec.input_samples, channels ? channels : 1);
+                measure(0, mic, spec.input_samples, channels ? channels : 1);
+                measure(1, ref, spec.input_samples, 1);
+                bool silent = true;
+                if (ref) {
+                  for (size_t i = 0; i < spec.input_samples; i++) {
+                    if (ref[i] != 0) { silent = false; break; }
+                  }
+                }
+                if (silent) zero_ref++;
+                bool ok = inner->process(mic, ref, out, channels);
+                if (ok) measure(2, out, spec.output_samples, 1);
+                else failures++;
+                estimate();
+                if (++frames >= 32) {
+                  double rms[3] = {};
+                  for (int k = 0; k < 3; k++) {
+                    if (count[k]) rms[k] = sqrt(static_cast<double>(energy[k]) / count[k]);
+                  }
+                  ESP_LOGI("aec_probe", "mic rms=%.0f peak=%d | ref rms=%.0f peak=%d | out rms=%.0f peak=%d | zero_ref=%u/32 failed=%u",
+                    rms[0], peak[0], rms[1], peak[1], rms[2], peak[2],
+                    static_cast<unsigned>(zero_ref), static_cast<unsigned>(failures));
+                  frames = failures = zero_ref = 0;
+                  for (int k = 0; k < 3; k++) { count[k] = energy[k] = 0; peak[k] = 0; }
+                }
+                return ok;
+              }
+            };
+            static AecProbe probe(id(stackchan_aec));
+            id(duplex_audio).set_processor(&probe);
+            ESP_LOGI("aec_probe", "Installed: hardware ADC reference; no software delay");
+    - priority: -100
+      then:
+        - lambda: |-
+            id(duplex_speaker).set_volume(1.0f);
+            id(duplex_audio).set_master_volume_min_db(-30.0f);
+            // RX is 4x16-bit TDM with half-frame WS. On DOUT this is also
+            // standard stereo I2S with 32-bit slots: left high 16 bits carry
+            // our PCM; all other TX slots are zero. AW88298 must expect 64fs.
+            uint16_t before = 0, cfg = 0, after = 0;
+            if (!id(aw88298_dac).read_byte_16(0x06, &before) ||
+                !id(aw88298_dac).read_byte_16(0x07, &cfg)) {
+              ESP_LOGE("amp_clock", "Cannot read AW88298 format registers");
+              return;
+            }
+            // Require the official 48 kHz, left-channel, Philips I2S setup.
+            // Retain two-slot amplifier mode; four-slot input capture is independent.
+            if ((before & 0x1F0F) != 0x1408 || (cfg & 0x0004) != 0) {
+              ESP_LOGE("amp_clock", "Unexpected format: I2SCTRL=0x%04x I2SCFG1=0x%04x", before, cfg);
+              return;
+            }
+            const uint16_t expected = (before & ~uint16_t(0x00F0)) | 0x00E0;
+            if (!id(aw88298_dac).write_byte_16(0x06, expected) ||
+                !id(aw88298_dac).read_byte_16(0x06, &after) || after != expected) {
+              ESP_LOGE("amp_clock", "AW88298 clock configuration/readback failed");
+              return;
+            }
+            id(amp_clock_ready) = true;
+            ESP_LOGI("amp_clock", "AW88298 I2SCTRL 0x%04x -> 0x%04x; 64 BCLK/frame, 32-bit left slot", before, after);
+        - script.execute: amplifier_diagnostics
+
+globals:
+  - id: amp_clock_ready
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: speaker_test_bytes
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+script:
+  # One recovery attempt, only for a disconnect in the first five seconds.
+  # Stop/test/mode buttons cancel this script, so it cannot reopen a stopped mic.
+  - id: pipecat_start_guard
+    mode: single
+    then:
+      - logger.log: "Pipecat Start requested; waiting for connection"
+      - wait_until:
+          condition:
+            lambda: return id(pipecat_va).is_connected();
+          timeout: 10s
+      - delay: 500ms
+      - if:
+          condition:
+            lambda: return id(pipecat_va).is_connected() && id(amp_clock_ready) && !id(speaker_test).is_running();
+          then:
+            - va_pipecat.start: pipecat_va
+            - wait_until:
+                condition:
+                  lambda: return !id(pipecat_va).is_connected();
+                timeout: 5s
+            - if:
+                condition:
+                  lambda: return !id(pipecat_va).is_connected();
+                then:
+                  - logger.log: "Startup connection lost; waiting for one retry"
+                  - wait_until:
+                      condition:
+                        lambda: return id(pipecat_va).is_connected();
+                      timeout: 10s
+                  - delay: 500ms
+                  - if:
+                      condition:
+                        lambda: return id(pipecat_va).is_connected() && id(amp_clock_ready) && !id(speaker_test).is_running();
+                      then:
+                        - logger.log: "Retrying Pipecat Start after reconnection"
+                        - va_pipecat.start: pipecat_va
+                      else:
+                        - logger.log: "Pipecat startup retry unavailable; press Start when connected"
+          else:
+            - logger.log: "Pipecat Start unavailable; check connection and amplifier diagnostics"
+  - id: amplifier_diagnostics
+    mode: single
+    then:
+      - lambda: |-
+          const uint8_t registers[] = {0x01, 0x04, 0x05, 0x06, 0x07, 0x0C};
+          for (uint8_t reg : registers) {
+            uint16_t value = 0;
+            if (id(aw88298_dac).read_byte_16(reg, &value))
+              ESP_LOGI("amp_diag", "AW88298 reg[0x%02x]=0x%04x", reg, value);
+            else
+              ESP_LOGE("amp_diag", "AW88298 read failed: reg[0x%02x]", reg);
+          }
+          ESP_LOGI("amp_diag", "clock_ready=%s master=%.3f speaker_volume=%.3f muted=%s",
+            id(amp_clock_ready) ? "YES" : "NO", id(duplex_audio).get_master_volume(),
+            id(duplex_speaker).get_volume(), id(duplex_speaker).get_mute_state() ? "YES" : "NO");
+  - id: speaker_test
+    mode: single
+    then:
+      - script.stop: pipecat_start_guard
+      - va_pipecat.stop: pipecat_va
+      - delay: 300ms
+      - speaker.stop: pipecat_speaker
+      - wait_until:
+          condition:
+            lambda: return id(pipecat_speaker).is_stopped();
+          timeout: 2s
+      - if:
+          condition:
+            lambda: return id(amp_clock_ready) && id(pipecat_speaker).is_stopped();
+          then:
+            - lambda: |-
+                id(speaker_test_bytes) = 0;
+                id(duplex_mic).start();
+                id(duplex_speaker).set_audio_stream_info(esphome::audio::AudioStreamInfo(16, 1, 48000));
+                id(duplex_speaker).start();
+            - wait_until:
+                condition:
+                  lambda: return id(duplex_speaker).is_running() && id(duplex_mic).is_running();
+                timeout: 3s
+            - if:
+                condition:
+                  lambda: return id(duplex_speaker).is_running() && id(duplex_mic).is_running();
+                then:
+                  - logger.log: "Speaker test: 1 kHz at -18 dBFS, current user volume; Pipecat stopped"
+                  - repeat:
+                      count: 100
+                      then:
+                        - lambda: |-
+                            int16_t samples[480];
+                            for (size_t i = 0; i < 480; ++i)
+                              samples[i] = static_cast<int16_t>(4096.0f * sinf(6.28318530718f * (i % 48) / 48.0f));
+                            id(speaker_test_bytes) += id(duplex_speaker).play(
+                              reinterpret_cast<const uint8_t *>(samples), sizeof(samples), 0);
+                        - delay: 10ms
+                  - lambda: |-
+                      ESP_LOGI("speaker_test", "PCM accepted=%u/96000 bytes (queue acceptance, not proof of sound)",
+                        static_cast<unsigned>(id(speaker_test_bytes)));
+                  - script.execute: amplifier_diagnostics
+                  - speaker.finish: duplex_speaker
+                  - delay: 500ms
+                else:
+                  - logger.log:
+                      level: ERROR
+                      format: "Speaker test aborted: audio stack did not start"
+            - lambda: id(duplex_mic).stop();
+            - speaker.stop: duplex_speaker
+          else:
+            - logger.log:
+                level: ERROR
+                format: "Speaker test aborted: amplifier not ready or Pipecat playback did not stop"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+  on_connect: !remove
+  on_disconnect: !remove
+
+api:
+  custom_services: true
+
+logger:
+  level: DEBUG
+
+# Audio Stack is the sole I2S owner. No legacy speaker/media player may claim it.
+i2s_audio: !remove
+media_player: !remove
+esp32_camera: !remove
+esp32_improv: !remove
+
+# Audio Stack codec-dev owns ES7210; official AW88298 and power handling stay.
+audio_adc: !remove
+
+esp_audio_stack:
+  id: duplex_audio
+  sample_rate: 48000
+  output_sample_rate: 16000
+  bits_per_sample: 16
+  slot_bit_width: 16
+  use_tdm_reference: true
+  tdm_total_slots: 4
+  tdm_mic_slot: 0
+  tdm_ref_slot: 1
+  tdm_tx_slot: 0
+  codec:
+    i2c_id: bsp_bus
+    input:
+      type: es7210
+      address: 0x40
+      mic_selected: 0x07
+      gain_db: 6
+      # Codec gain channel is ADC MIC3 (index 2), not TDM slot 1.
+      ref_channel: 2
+      ref_gain_db: 0
+  i2s_mclk_pin:
+    number: GPIO0
+    ignore_strapping_warning: true
+  i2s_bclk_pin: GPIO34
+  i2s_lrclk_pin: GPIO33
+  i2s_din_pin: GPIO14
+  i2s_dout_pin: GPIO13
+  buffers_in_psram: true
+  processor_id: stackchan_aec
+  telemetry: true
+  telemetry_log_interval_frames: 128
+  on_state:
+    - logger.log:
+        format: "Audio Stack state: %s"
+        args: [state.c_str()]
+
+microphone:
+  - id: !remove i2s_mic
+  - platform: esp_audio_stack
+    id: duplex_mic
+
+speaker:
+  - id: !remove i2s_speaker
+  - platform: esp_audio_stack
+    id: duplex_speaker
+    buffer_duration: 100ms
+  - platform: resampler
+    id: pipecat_speaker
+    output_speaker: duplex_speaker
+    sample_rate: 48000
+    bits_per_sample: 16
+
+va_pipecat:
+  id: pipecat_va
+  auto_provision: true
+  microphone:
+    microphone: duplex_mic
+    channels: 0
+    gain_factor: ${pipecat_mic_gain}
+  speaker: pipecat_speaker
+  barge_in: true
+  playback_buffer_size: 2MB
+  on_phase:
+    - logger.log:
+        format: "Pipecat phase: %s"
+        args: [phase.c_str()]
+  on_transcript:
+    - logger.log:
+        format: "Pipecat %s: %s"
+        args: [role.c_str(), text.c_str()]
+  on_error:
+    - logger.log:
+        level: ERROR
+        format: "Pipecat error %s: %s"
+        args: [code.c_str(), message.c_str()]
+
+button:
+  - platform: template
+    name: AEC Mode FD
+    on_press:
+      - script.stop: pipecat_start_guard
+      - va_pipecat.stop: pipecat_va
+      - delay: 1s
+      - esp_aec.set_mode:
+          id: stackchan_aec
+          mode: fd_low_cost
+      - lambda: id(stackchan_aec).dump_config();
+  - platform: template
+    name: AEC Mode SR
+    on_press:
+      - script.stop: pipecat_start_guard
+      - va_pipecat.stop: pipecat_va
+      - delay: 1s
+      - esp_aec.set_mode:
+          id: stackchan_aec
+          mode: sr_low_cost
+      - lambda: id(stackchan_aec).dump_config();
+  - platform: template
+    name: Audio Diagnostics
+    on_press:
+      - esp_audio_stack.dump_diagnostics: duplex_audio
+      - script.execute: amplifier_diagnostics
+  - platform: template
+    name: Speaker Test
+    on_press:
+      - script.execute: speaker_test
+  - platform: template
+    name: Pipecat Start
+    on_press:
+      - if:
+          condition:
+            lambda: return id(amp_clock_ready) && !id(speaker_test).is_running();
+          then:
+            - script.execute: pipecat_start_guard
+          else:
+            - logger.log:
+                level: WARN
+                format: "Start blocked: amplifier not ready or Speaker Test active"
+  - platform: template
+    name: Pipecat Stop
+    on_press:
+      - script.stop: pipecat_start_guard
+      - va_pipecat.stop: pipecat_va
+
+number:
+  - platform: esp_audio_stack
+    master_volume:
+      name: Duplex Volume
+      speaker_id: duplex_speaker
+
+esp_aec:
+  id: stackchan_aec
+  sample_rate: 16000
+  mode: fd_low_cost
+  filter_length: 4
+
+switch:
+  - platform: esp_audio_stack
+    aec:
+      name: Echo Cancellation
+      restore_mode: ALWAYS_ON
+
+interval:
+  - interval: 10s
+    then:
+      - if:
+          condition:
+            lambda: return id(duplex_mic).is_running();
+          then:
+            - esp_audio_stack.dump_diagnostics: duplex_audio
+            - script.execute: amplifier_diagnostics
+
+sensor:
+  - platform: esp_audio_stack
+    esp_audio_stack_id: duplex_audio
+    tdm_slot_levels:
+      - name: Audio Slot 0
+        slot: 0
+        update_interval: 1s
+      - name: Audio Slot 1 Reference
+        slot: 1
+        update_interval: 1s
+      - name: Audio Slot 2
+        slot: 2
+        update_interval: 1s
+      - name: Audio Slot 3
+        slot: 3
+        update_interval: 1s

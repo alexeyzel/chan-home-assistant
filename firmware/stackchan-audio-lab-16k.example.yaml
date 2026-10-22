@@ -1,0 +1,408 @@
+# Native 16 kHz shared bus: ES7210 36 dB; no input sample-rate conversion.
+substitutions:
+  name: stackchan-test
+  friendly_name: StackChan Test
+  # AFE performs gain control; no additional fixed uplink amplification.
+  capture_password: "CHANGE_THIS_PASSWORD" # Set 12-64 letters/digits; username: diagnostic
+
+packages:
+  stackchan:
+    url: https://github.com/m5stack/esphome-yaml
+    files: [examples/kit/stackchan-bsp.factory.yaml]
+    ref: cc708ddcc9dea7cfc746b408d2495ce281bbf2d2
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/m5stack/esphome-yaml
+      ref: cc708ddcc9dea7cfc746b408d2495ce281bbf2d2
+      path: components
+    components: [axp2101, aw88298, aw9523b, si12t, m5ioe1, ftservo, scs9009]
+  - source:
+      type: git
+      url: https://github.com/alexeyzel/chan-home-assistant
+      ref: 12c218e0170c06d478effd00d9a1e3f5aa2ab833
+      path: components
+    components: [esp_afe]
+  - source:
+      type: git
+      url: https://github.com/alexeyzel/chan-home-assistant
+      ref: 80e0d8c96044ec3c1c5ba370ac88354046952611
+      path: components
+    components: [esp_audio_stack]
+
+esphome:
+  min_version: 2026.9.1
+  build_path: stackchan-audio-lab-16k-oct-build
+  compile_process_limit: 2
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: |-
+            id(stackchan_afe).capture.set_password("${capture_password}");
+            id(duplex_speaker).set_volume(1.0f);
+            id(duplex_audio).set_master_volume_min_db(-30.0f);
+            // RX is 4x16-bit TDM with half-frame WS. On DOUT this is also
+            // standard stereo I2S with 32-bit slots: left high 16 bits carry
+            // our PCM; all other TX slots are zero. AW88298 must expect 64fs.
+            uint16_t before = 0, cfg = 0, after = 0;
+            if (!id(aw88298_dac).read_byte_16(0x06, &before) ||
+                !id(aw88298_dac).read_byte_16(0x07, &cfg)) {
+              ESP_LOGE("amp_clock", "Cannot read AW88298 format registers");
+              return;
+            }
+            // Require the official 16 kHz, left-channel, Philips I2S setup.
+            // Retain two-slot amplifier mode; four-slot input capture is independent.
+            if ((before & 0x1F0F) != 0x1403 || (cfg & 0x0004) != 0) {
+              ESP_LOGE("amp_clock", "Unexpected format: I2SCTRL=0x%04x I2SCFG1=0x%04x", before, cfg);
+              return;
+            }
+            const uint16_t expected = (before & ~uint16_t(0x00F0)) | 0x00E0;
+            if (!id(aw88298_dac).write_byte_16(0x06, expected) ||
+                !id(aw88298_dac).read_byte_16(0x06, &after) || after != expected) {
+              ESP_LOGE("amp_clock", "AW88298 clock configuration/readback failed");
+              return;
+            }
+            id(amp_clock_ready) = true;
+            ESP_LOGI("amp_clock", "AW88298 I2SCTRL 0x%04x -> 0x%04x; 64 BCLK/frame, 32-bit left slot", before, after);
+        - script.execute: amplifier_diagnostics
+
+globals:
+  - id: lab_quiet_capture
+    type: bool
+    initial_value: "false"
+  - id: amp_clock_ready
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: speaker_test_bytes
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+script:
+  - id: adc_gain_diagnostics
+    then:
+      - lambda: |-
+          for (uint8_t reg : {0x11, 0x12, 0x43, 0x44, 0x45, 0x46}) {
+            uint8_t value = 0;
+            auto err = id(bsp_bus).write_readv(0x40, &reg, 1, &value, 1);
+            if (err == esphome::i2c::ERROR_OK)
+              ESP_LOGI("adc_probe", "ES7210 reg[0x%02x]=0x%02x", reg, value);
+            else
+              ESP_LOGE("adc_probe", "ES7210 read reg[0x%02x] failed=%d", reg, (int)err);
+          }
+          ESP_LOGI("adc_probe", "Expected MIC1/2 gain nibble=13 (36dB), MIC3 reference=0; PCM16 16k native (no input resampling); digital input gain=1");
+  - id: capture_level_summary
+    then:
+      - lambda: |-
+          auto &cap = id(stackchan_afe).capture;
+          if (cap.guard.test_and_set()) return;
+          if (cap.state != esphome::esp_afe::ChanCapture::READY || cap.frames == 0) {
+            cap.guard.clear();
+            return;
+          }
+          for (int ch=0; ch<4; ++ch) {
+            double sum=0; int peak=0; unsigned clipped=0;
+            for (size_t i=0; i<cap.frames; ++i) {
+              int v=cap.data[4*i+ch]; int a=v<0?-v:v;
+              sum += double(v)*v;
+              if (a>peak) peak=a;
+              if (a>=32760) ++clipped;
+            }
+            double rms=sqrt(sum/cap.frames);
+            ESP_LOGI("pcm_probe", "16k capture ch=%d samples=%u peak=%d rms_dbfs=%.1f clipped=%u", ch,
+              (unsigned)cap.frames, peak, 20*log10((rms>0?rms:0.000001)/32768.0), clipped);
+          }
+          cap.guard.clear();
+  - id: amplifier_diagnostics
+    mode: single
+    then:
+      - lambda: |-
+          const uint8_t registers[] = {0x01, 0x04, 0x05, 0x06, 0x07, 0x0C};
+          for (uint8_t reg : registers) {
+            uint16_t value = 0;
+            if (id(aw88298_dac).read_byte_16(reg, &value))
+              ESP_LOGI("amp_diag", "AW88298 reg[0x%02x]=0x%04x", reg, value);
+            else
+              ESP_LOGE("amp_diag", "AW88298 read failed: reg[0x%02x]", reg);
+          }
+          ESP_LOGI("amp_diag", "clock_ready=%s master=%.3f speaker_volume=%.3f muted=%s",
+            id(amp_clock_ready) ? "YES" : "NO", id(duplex_audio).get_master_volume(),
+            id(duplex_speaker).get_volume(), id(duplex_speaker).get_mute_state() ? "YES" : "NO");
+  - id: local_audio_test
+    mode: single
+    parameters:
+      playback: bool
+      recording: bool
+    then:
+      - if:
+          condition:
+            lambda: return id(amp_clock_ready) && (!playback || id(stackchan_afe).capture.has_stimulus());
+          then:
+            - lambda: |-
+                id(speaker_test_bytes) = 0;
+                id(lab_quiet_capture) = !playback && recording;
+                id(duplex_mic).start();
+                id(duplex_speaker).set_audio_stream_info(esphome::audio::AudioStreamInfo(16, 1, 16000));
+                id(duplex_speaker).start();
+            - delay: 1s
+            - script.execute: adc_gain_diagnostics
+            - if:
+                condition:
+                  lambda: return id(duplex_mic).is_running() && id(duplex_speaker).is_running() && id(stackchan_afe).capture.begin(recording);
+                then:
+                  - logger.log: "LOCAL TEST START 16k: wait two seconds, speak normally; wait for END without pressing Stop"
+                  - repeat:
+                      count: 800
+                      then:
+                        - if:
+                            condition:
+                              lambda: return playback;
+                            then:
+                              - lambda: |-
+                                  int16_t samples[160];
+                                  const size_t first = id(speaker_test_bytes) / 2;
+                                  for (size_t i=0; i<160; ++i)
+                                    samples[i] = id(stackchan_afe).capture.playback_sample(first+i);
+                                  id(speaker_test_bytes) += id(duplex_speaker).play(
+                                    reinterpret_cast<const uint8_t *>(samples), sizeof(samples), 0);
+                        - delay: 10ms
+                  - logger.log: "LOCAL TEST END"
+                else:
+                  - logger.log:
+                      level: ERROR
+                      format: "Local test could not start (password, RAM, download or audio busy)"
+            - lambda: id(duplex_mic).stop();
+            - speaker.stop: duplex_speaker
+            - delay: 200ms
+            - lambda: |-
+                id(stackchan_afe).capture.finish(!playback && recording);
+                ESP_LOGI("chan_capture", "Local playback accepted %u bytes (target 256000)", (unsigned)id(speaker_test_bytes));
+                id(stackchan_afe).dump_runtime_diagnostics();
+            - script.execute: capture_level_summary
+          else:
+            - logger.log:
+                level: WARN
+                format: "Run Lab 1 first to create speech stimulus; amplifier must be ready"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+  on_connect: !remove
+  on_disconnect: !remove
+
+api:
+  custom_services: true
+
+logger:
+  level: DEBUG
+
+# Audio Stack is the sole I2S owner. No legacy speaker/media player may claim it.
+i2s_audio: !remove
+media_player: !remove
+esp32_camera: !remove
+esp32_improv: !remove
+
+# Audio Stack codec-dev owns ES7210; official AW88298 and power handling stay.
+audio_adc: !remove
+
+esp_audio_stack:
+  id: duplex_audio
+  # Log 33: core 0 saturated while core 1 had 55-56% idle.
+  # Keep priority 19; free core 0 time for afe_feed without moving the DSP graph.
+  task_core: 1
+  sample_rate: 16000
+  output_sample_rate: 16000
+  bits_per_sample: 16
+  slot_bit_width: 16
+  use_tdm_reference: true
+  tdm_total_slots: 4
+  tdm_mic_slots: [0, 2]
+  tdm_ref_slot: 1
+  tdm_tx_slot: 0
+  codec:
+    i2c_id: bsp_bus
+    input:
+      type: es7210
+      address: 0x40
+      mic_selected: 0x07
+      gain_db: 36 # Official StackChan ESPHome BSP microphone gain; reference remains 0 dB
+      # Codec gain channel is ADC MIC3 (index 2), not TDM slot 1.
+      ref_channel: 2
+      ref_gain_db: 0
+  i2s_mclk_pin:
+    number: GPIO0
+    ignore_strapping_warning: true
+  i2s_bclk_pin: GPIO34
+  i2s_lrclk_pin: GPIO33
+  i2s_din_pin: GPIO14
+  i2s_dout_pin: GPIO13
+  buffers_in_psram: true
+  processor_id: stackchan_afe
+  telemetry: true
+  telemetry_log_interval_frames: 128
+  on_state:
+    - logger.log:
+        format: "Audio Stack state: %s"
+        args: [state.c_str()]
+
+audio_dac:
+  - id: !extend aw88298_dac
+    sample_rate: 16000
+
+microphone:
+  - id: !remove i2s_mic
+  - platform: esp_audio_stack
+    id: duplex_mic
+
+speaker:
+  - id: !remove i2s_speaker
+  - platform: esp_audio_stack
+    id: duplex_speaker
+    buffer_duration: 100ms
+
+button:
+  - platform: template
+    name: Audio Diagnostics
+    on_press:
+      - lambda: id(stackchan_afe).dump_config();
+      - esp_audio_stack.dump_diagnostics: duplex_audio
+      - script.execute: amplifier_diagnostics
+  - platform: template
+    name: Lab 1 Quiet Capture
+    on_press:
+      - script.execute:
+          id: local_audio_test
+          playback: false
+          recording: true
+  - platform: template
+    name: Lab 2 Playback Capture
+    on_press:
+      - script.execute:
+          id: local_audio_test
+          playback: true
+          recording: true
+  - platform: template
+    name: Lab 3 Playback No Capture
+    on_press:
+      - script.execute:
+          id: local_audio_test
+          playback: true
+          recording: false
+  - platform: template
+    name: Lab Stop
+    on_press:
+      - script.stop: local_audio_test
+      - lambda: id(duplex_mic).stop();
+      - speaker.stop: duplex_speaker
+      - delay: 200ms
+      - lambda: id(stackchan_afe).capture.finish(id(lab_quiet_capture));
+      - logger.log: "LOCAL TEST STOPPED EARLY: partial quiet capture retained as stimulus"
+      - script.execute: capture_level_summary
+
+number:
+  - platform: esp_audio_stack
+    master_volume:
+      name: Duplex Volume
+      speaker_id: duplex_speaker
+
+# AFE graph from Waveshare Audio VA: two microphones plus hardware reference.
+# Keep StackChan's proven analog gains; Waveshare's 30 dB reference gain is
+# board-specific and must not be copied onto this amplifier feedback path.
+esp_afe:
+  id: stackchan_afe
+  type: sr
+  mode: low_cost
+  mic_num: 2
+  input_format: mmr
+  aec_enabled: true
+  aec_filter_length: 4
+  aec_nlp_level: aggressive
+  se_enabled: true
+  ns_enabled: false
+  vad_enabled: false
+  agc_enabled: true
+  post_afe_agc_support: true
+  agc_compression_gain: 15
+  agc_target_level: 3
+  memory_alloc_mode: more_psram
+  feed_buf_in_psram: true
+  feed_ring_in_psram: true
+  fetch_ring_in_psram: true
+
+switch:
+  - platform: esp_audio_stack
+    aec:
+      name: Echo Cancellation
+      restore_mode: ALWAYS_ON
+
+interval:
+  - interval: 1s
+    then:
+      - if:
+          condition:
+            lambda: return id(duplex_mic).is_running();
+          then:
+            - lambda: |-
+                ESP_LOGI("pcm_probe", "16k native slot RMS dBFS mic0=%.1f ref=%.1f mic2=%.1f",
+                  id(duplex_audio).get_tdm_slot_level_dbfs(0),
+                  id(duplex_audio).get_tdm_slot_level_dbfs(1),
+                  id(duplex_audio).get_tdm_slot_level_dbfs(2));
+  - interval: 10s
+    then:
+      - lambda: id(stackchan_afe).dump_runtime_diagnostics();
+  - interval: 10s
+    then:
+      - if:
+          condition:
+            lambda: return id(duplex_mic).is_running();
+          then:
+            - esp_audio_stack.dump_diagnostics: duplex_audio
+            - script.execute: amplifier_diagnostics
+
+sensor:
+  - platform: esp_audio_stack
+    esp_audio_stack_id: duplex_audio
+    tdm_slot_levels:
+      - name: Audio Slot 0
+        slot: 0
+        update_interval: 1s
+      - name: Audio Slot 1 Reference
+        slot: 1
+        update_interval: 1s
+      - name: Audio Slot 2
+        slot: 2
+        update_interval: 1s
+      - name: Audio Slot 3
+        slot: 3
+        update_interval: 1s
+
+esp32:
+  variant: esp32s3
+  cpu_frequency: 240MHz
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    components:
+      - espressif/esp-sr==2.5.5
+    # Same performance/memory profile as the pinned Waveshare AFE reference.
+    advanced:
+      compiler_optimization: PERF
+    sdkconfig_options:
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
+      CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB: "y"
+      CONFIG_SPIRAM_RODATA: "y"
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "y"
+      CONFIG_SPIRAM_USE_CAPS_ALLOC: "n"
+      CONFIG_SPIRAM_USE_MALLOC: "y"
+      CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL: "1024"
+      CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL: "32768"
+      CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS: "y"
+      CONFIG_FREERTOS_USE_TRACE_FACILITY: "y"
+      CONFIG_FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER: "y"
+
+runtime_stats:
+  log_interval: 10s
