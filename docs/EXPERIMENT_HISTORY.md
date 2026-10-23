@@ -47,7 +47,8 @@ ESPHome; they are comparisons, not supported alternative current builds.
 
 | File | Status/use |
 | --- | --- |
-| stackchan-audio-lab-buffered.example.yaml | **Active; log41 timing pass, residual clipping/low speech unresolved** |
+| stackchan-audio-lab-headroom.example.yaml | **Active;12dB + pre/post-AGC capture; hardware pending** |
+| stackchan-audio-lab-buffered.example.yaml | Log41 baseline: timing pass, residual clipping/low speech unresolved |
 | stackchan-audio-lab-16k.example.yaml | Preceding36dB lab: quiet pass/playback fail logs39/40; preserve comparison |
 | stackchan-pipecat-16k.example.yaml | Compiled deferred live candidate, still36dB; buffered-lab changes not ported |
 | stackchan-audio-lab-v2.example.yaml | 48k bus/36dB gain-audit candidate, superseded by native16k |

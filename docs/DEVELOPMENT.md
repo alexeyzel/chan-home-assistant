@@ -25,15 +25,15 @@ portable project requirements; resolve relative paths on another host.
 - `.venv-duplex/Scripts/python.exe`: ESPHome 2026.9.1 / earlier IDF 5.5.5 builds.
 - YAML min_version is a lower bound, not a toolchain pin. Check actual version.
 - Build logs sit outside the repo in the workspace; final current log is
-  `audio-lab-buffered-final-build.txt`. Do not commit raw logs or local binaries.
+  `audio-lab-headroom-final-build.txt`. Do not commit raw logs or local binaries.
 
 PowerShell, from the repository directory:
 
 ```powershell
 & ..\.venv-esphome-2026-10\Scripts\python.exe -m esphome version
-& ..\.venv-esphome-2026-10\Scripts\python.exe -m esphome config firmware/stackchan-audio-lab-buffered.example.yaml
-& ..\.venv-esphome-2026-10\Scripts\python.exe -m esphome compile firmware/stackchan-audio-lab-buffered.example.yaml
-& ..\.venv-esphome-2026-10\Scripts\python.exe -m esptool image-info firmware/.esphome/stackchan-audio-lab-buffered-build/build/firmware.ota.bin
+& ..\.venv-esphome-2026-10\Scripts\python.exe -m esphome config firmware/stackchan-audio-lab-headroom.example.yaml
+& ..\.venv-esphome-2026-10\Scripts\python.exe -m esphome compile firmware/stackchan-audio-lab-headroom.example.yaml
+& ..\.venv-esphome-2026-10\Scripts\python.exe -m esptool image-info firmware/.esphome/stackchan-audio-lab-headroom-build/build/firmware.ota.bin
 ```
 
 Config output can contain expanded secrets: do not expose or publish it. Existing
@@ -66,8 +66,8 @@ claiming hardware success. Documentation-only edits do not require firmware buil
 
 | Concern | First location to inspect |
 | --- | --- |
-| Active lab sequencing, feeding, gain, clock guard | firmware/stackchan-audio-lab-buffered.example.yaml |
-| RAM capture, authentication, WAV routes/state | components/esp_afe/chan_capture.h (delivered lab pins remote 12c218e) |
+| Active lab sequencing, feeding, gain, clock guard | firmware/stackchan-audio-lab-headroom.example.yaml |
+| RAM capture, authentication, WAV routes/state | components/esp_afe/chan_capture.h (headroom lab pins remote 2bbcfbd) |
 | AFE graph, task callbacks and profiling | components/esp_afe/esp_afe.cpp and chan profiling helpers in that component |
 | Speaker staging/accepted-byte behavior | components/esp_audio_stack/esp_audio_stack.cpp and speaker/esp_audio_stack_speaker.cpp |
 | RX/TX frame packing and underrun counters | components/esp_audio_stack/audio_pipeline.cpp |

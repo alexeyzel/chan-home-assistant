@@ -12,15 +12,15 @@ This file applies to the nested repository. The workspace parent contains only
 an entry-point AGENTS.md; source control is here, not in the parent directory.
 
 1. Read docs/CURRENT_STATE.md before acting; it is the current status authority.
-2. Read docs/BUFFERED_AUDIO_LAB.md for the active test and docs/EXPERIMENT_HISTORY.md
+2. Read docs/HEADROOM_AUDIO_LAB.md for the active test and docs/EXPERIMENT_HISTORY.md
    to avoid repeating failed experiments. docs/REFERENCE_INDEX.md lists donors/pins.
 3. Read docs/DEVELOPMENT.md for workspace/toolchain issues and docs/VALIDATION.md
    for detailed evidence. Historical “next test” paragraphs are not current orders.
 
-As of 2026-10-23 the active YAML is firmware/stackchan-audio-lab-buffered.example.yaml.
-Log41 hardware results: playback timing passed (7.098s for7s), but residual mic
+As of 2026-10-23 the active YAML is firmware/stackchan-audio-lab-headroom.example.yaml.
+The preceding buffered lab log41 hardware results: playback timing passed (7.098s for7s), but residual mic
 clipping and low quiet processed speech remain. See docs/LAB41_ANALYSIS.md.
-Next proposed experiment separates ADC headroom and AFE/AGC; not implemented yet.
+New headroom lab:12dB, simultaneous pre/post-AGC WAVs; owner testing pending.
 Do not start an older experiment or claim reliable live interruption is solved.
 
 After new evidence or a delivery, update CURRENT_STATE and VALIDATION together;

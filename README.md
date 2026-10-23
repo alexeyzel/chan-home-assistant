@@ -14,8 +14,10 @@ merging development here does not create a release.
 
 ## Current state — 2026-10-23
 
-**Active candidate:** [buffered native-16k audio lab](firmware/stackchan-audio-lab-buffered.example.yaml).
-It compiled on ESPHome 2026.10.0 / ESP-IDF 5.5.6; **log41 hardware tests show partial progress**.
+**Active candidate:** [headroom / pre-AGC audio lab](firmware/stackchan-audio-lab-headroom.example.yaml).
+**New candidate:12dB and simultaneous pre/post-AGC capture; hardware testing pending.**
+Compiled with ESPHome2026.10.0 / ESP-IDF5.5.6; ESP32-S3 image verified.
+The preceding buffered lab had partial hardware progress in log41.
 This lab deliberately omits Pipecat to isolate playback, microphone saturation and AFE.
 
 The preceding native-16k Lab 1 recorded clear speech without clipping. Lab 2
@@ -35,7 +37,7 @@ The latter identifies the exact active artifact, latest evidence, unresolved
 questions and next action. [Documentation index](docs/README.md) separates current
 instructions from historical experiments.
 
-- [Current test protocol](docs/BUFFERED_AUDIO_LAB.md)
+- [Current test protocol](docs/HEADROOM_AUDIO_LAB.md)
 - [Experiment history and firmware catalog](docs/EXPERIMENT_HISTORY.md)
 - [Pinned references and dependencies](docs/REFERENCE_INDEX.md)
 - [Build and workspace notes](docs/DEVELOPMENT.md)
@@ -44,7 +46,7 @@ instructions from historical experiments.
 Copy the entire active YAML into ESPHome, set your capture password and keep
 Wi-Fi credentials in Secrets. No manual component/header uploads are needed.
 For Lab 1, count roughly two seconds, say a short normal-volume sentence, then
-wait for END without Stop. Exact timing is unnecessary. Save the files before
+wait for END without Stop. Exact timing is unnecessary. Save all six WAVs, including pre-agc.wav, before
 Lab 2; remain silent during Lab 2. See the protocol for download links and limits.
 
 ## Product direction

@@ -656,3 +656,23 @@ capture full. No aligned zero256-sample blocks. CPU window afe_feed77.8%,
 IDLE0 22.3%, IDLE1 76.5%; not steady-state feature headroom proof.
 Documentation-only update, no firmware change/compile/flash/release. Proposed
 next experiment: controlled12dB headroom trial and separate AFE/AGC measurement.
+
+## Headroom/pre-AGC candidate (2026-10-23)
+
+- New single-copy YAML: firmware/stackchan-audio-lab-headroom.example.yaml.
+  Fixed mic12dB/ref0; native16k and buffered playback retained. AFE/AGC unchanged.
+- Remote esp_afe2bbcfbd adds pre-agc.wav in parallel with processed.wav, using
+  bounded1024-sample staging and256000 additional PSRAM bytes. Existing routes
+  and authentication retained. Oversized tap frames reported via pre_agc_missing.
+- Missing counter excludes full-buffer callbacks, reports first missing sample.
+  Stimulus-only normalization allows+30dB at12dB ADC; minimum peak733. Recordings
+  remain unnormalized. Cross-firmware stimulus identity is not guaranteed.
+- Final public YAML compiled ESPHome2026.10.0/IDF5.5.6, hash0xfd5de467. Verified
+  generated source has new tap and final peak733 limit. Image ESP32-S3 chip9,
+  16MB, checksum/hash valid. RAM174651/341760, flash1856099/8126464. Runtime
+  memory/CPU and microphone headroom still need physical testing.
+- First build hit known Windows ldgen.py batch suffix parsing; inspected generated
+  arguments executed directly, then final YAML rebuilt successfully. Logs outside
+  repository: audio-lab-headroom-build.txt / audio-lab-headroom-final-build.txt.
+- Documentation/current pointers updated. No raw recordings, secrets, binaries,
+  public release or device flashing. Owner procedure in HEADROOM_AUDIO_LAB.md.

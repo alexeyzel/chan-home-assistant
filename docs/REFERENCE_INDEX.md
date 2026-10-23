@@ -5,19 +5,19 @@ Do not update them merely to refresh documentation. Hardware changes need source
 and measurement evidence. A donor working on another board is not a tested
 StackChan configuration.
 
-## Active buffered lab dependencies
+## Active headroom lab dependencies
 
 | Role | Repository/revision | Why retained |
 | --- | --- | --- |
 | Official BSP and external board drivers | m5stack/esphome-yaml `cc708ddcc9dea7cfc746b408d2495ce281bbf2d2` | Power, pins, AW88298 and board peripherals |
-| AFE capture component | alexeyzel/chan-home-assistant `12c218e0170c06d478effd00d9a1e3f5aa2ab833` | Authenticated RAM captures and profiling |
+| AFE capture component | alexeyzel/chan-home-assistant `2bbcfbd1e98bf0a22f2f077550b3e3399379c474` | Authenticated RAM captures, simultaneous pre/post-AGC and bounded missing counting |
 | Audio Stack | alexeyzel/chan-home-assistant `80e0d8c96044ec3c1c5ba370ac88354046952611` | Single bus, codec-less TX correction, ESPHome 2026.10 RingBuffer compatibility |
 | ESP-SR | `2.5.5` | Fixed AFE dependency; see generated managed-components lock for transitive details |
 
 The deferred native16k Pipecat YAML uses the same BSP/audio-stack pins, AFE
 `e48a26e57a7c6d5017e9ee92f856956bd487ae51` (profiling, without the lab capture
 variant), and va_pipecat `a538d1d1bacc8609061719f0b05c1622147ccb4b`. Its microphone
-ADC remains36dB; do not describe it as having the buffered lab's18dB trial.
+ADC remains36dB; do not describe it as having the headroom lab's12dB trial.
 
 ## Donors and what they establish
 

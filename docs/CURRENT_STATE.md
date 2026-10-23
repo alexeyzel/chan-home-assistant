@@ -1,6 +1,6 @@
 # Current project state
 
-Updated 2026-10-23 after analyzing log41 and both five-channel WAV sets.
+Updated 2026-10-23 after log41 analysis and preparation of the headroom/pre-AGC lab.
 Playback timing passed; residual clipping and quiet speech level remain unresolved. This file is the
 starting point for another chat; historical “pending”/“next” paragraphs elsewhere
 must not override it.
@@ -14,17 +14,17 @@ status was unchanged by consolidation; subsequent log41 findings are below.
 
 ## Immediate next action
 
-Review [log41 analysis](LAB41_ANALYSIS.md). Proposed next test: preserve buffered
-playback, trial fixed12dB ADC headroom with identical stimulus, separate AFE output
-from post-AGC measurement, then calibrate speech level. This is not implemented.
+Review [log41 analysis](LAB41_ANALYSIS.md). Next owner test: headroom lab with fixed12dB and simultaneous pre/post-AGC
+WAVs. Same buffered playback; new RAM stimulus comes from its own Lab1, so
+cross-firmware stimulus identity is not guaranteed. See HEADROOM_AUDIO_LAB.md.
 Do not return to speculative VAD/delay changes or call duplex solved.
 
-Current candidate has **partial hardware validation; headroom fails and echo control remains unproven**. Last full
-build: ESPHome 2026.10.0, ESP-IDF 5.5.6, config hash 0xadeb4280, ESP32-S3 chip ID 9,
-16 MB, valid checksum/hash. Static RAM 172587/341760, image 1855715/8126464 bytes;
+Current headroom candidate is **compile-validated; no hardware results yet**.
+Final build: ESPHome2026.10.0, ESP-IDF5.5.6, config hash0xfd5de467, ESP32-S3 chip ID9,
+16MB, valid checksum/hash. Static RAM174651/341760, flash1856099/8126464 bytes;
 these are not runtime headroom measurements. No new release exists.
 
-The local-lab protocol is [BUFFERED_AUDIO_LAB](BUFFERED_AUDIO_LAB.md). User-facing
+The local-lab protocol is [HEADROOM_AUDIO_LAB](HEADROOM_AUDIO_LAB.md). User-facing
 instruction: press Lab 1, count roughly “one, two”, say a short normal-volume
 sentence, wait for END. Do not require a stopwatch or exact seven-second speech
 cutoff. Lab 2 plays only the first seven seconds, so a late phrase tail may be
@@ -79,19 +79,20 @@ are not steady-state camera/motor headroom measurements or proof CPU is solved.
 
 - Single I2S owner, native RX/TX16k; no input48→16 conversion. Live candidate
   (separate, deferred) retains only Pipecat output24→16 resampling.
-- Fixed mic18dB/ref0; log41 shows residual clipping, not a qualified setting. Earlier 18dB
+- Fixed mic12dB/ref0 trial; prior18dB log41 still clipped. Earlier18dB
   standalone-AEC tests also failed echo control; gain alone is not the solution.
 - Lab-only speaker ring500ms. Capacity-driven nonblocking writes; advance only
   accepted bytes; 1ms yield is scheduling, not PCM pacing. Wait for drain and
   flag incomplete/too-slow playback. Do not copy this queue size into live
   barge-in without checking cancellation latency.
-- Lab 1 retained stimulus only: normalize peak to−3dBFS, maximum about+24dB;
+- Lab 1 retained stimulus only: normalize peak to−3dBFS, maximum about+30dB;
   insufficient-level recordings disable Lab 2. Raw/processed WAVs are unchanged.
   Stimulus will therefore no longer be bit-identical to processed. Stable peak
   is not constant RMS or perceived loudness.
 - First7s stimulus/8s capture, test at least8.5s. Stop while idle does nothing;
   aborted quiet test retains partial WAVs but invalidates stimulus.
-- AFE/AGC/pins/amplifier are unchanged from native16k lab. See YAML for exact values.
+- AFE/AGC/pins/amplifier unchanged; pre-agc.wav taps before post-AGC, processed.wav
+  remains after it. Corrected full-buffer missing accounting. See YAML for values.
 
 ## Hardware/processing invariants
 
@@ -113,7 +114,7 @@ Password-protected HTTP on trusted LAN explicitly approved by owner. Username
 `diagnostic`; set `capture_password` (recommend12–64 letters/digits); placeholder
 rejected. Server8088 starts after a successful begin. Use exact endpoints
 `http://ROBOT_IP:8088/mic0.wav`, `/mic2.wav`, `/reference.wav`, `/processed.wav`,
-`/stimulus.wav`; there is no registered index page at `/`. RAM-only, no cloud;
+`/stimulus.wav`, `/pre-agc.wav`; there is no registered index page at `/`. RAM-only, no cloud;
 next capture replaces diagnostic files, reboot erases all. HTTP Basic is not TLS.
 
 Log 38 connection refused was **unset/invalid password**: “Set capture_password”
