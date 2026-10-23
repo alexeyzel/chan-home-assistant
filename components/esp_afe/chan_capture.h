@@ -1,6 +1,7 @@
 #pragma once
 // Bounded RAM-only diagnostic recording. Audio task never sends network data.
 #include <atomic>
+#include <array>
 #include <algorithm>
 #include <cstring>
 #include <string>
@@ -17,7 +18,16 @@ class ChanCapture {
   std::atomic<int> state{EMPTY};
   std::atomic_flag guard=ATOMIC_FLAG_INIT;
   std::atomic<uint32_t> skipped{0};
-  int16_t *data{nullptr}, *stimulus{nullptr};
+  int16_t *data{nullptr}, *stimulus{nullptr}, *pre_agc{nullptr};
+  std::array<int16_t, 1024> pre_stage{};
+  size_t pre_stage_samples{0};
+  uint32_t pre_missing{0}, first_missing{UINT32_MAX};
+  // Called only by the audio consumer, before in-place post-AGC.
+  void stage_pre_agc(const int16_t *pcm, size_t n) {
+    pre_stage_samples=0;
+    if(state!=RECORDING || !recording_enabled || n>pre_stage.size()) return;
+    memcpy(pre_stage.data(),pcm,n*sizeof(int16_t)); pre_stage_samples=n;
+  }
   size_t frames{0}, stimulus_frames{0};
   bool recording_enabled{true};
   uint32_t missing{0}, copy_max_us{0};
@@ -39,7 +49,7 @@ class ChanCapture {
     cfg.server_port=8088; cfg.ctrl_port=32778; cfg.stack_size=6144;
     cfg.max_uri_handlers=6; cfg.max_open_sockets=2; cfg.lru_purge_enable=true;
     if (httpd_start(&server,&cfg)!=ESP_OK) return false;
-    const char *paths[]={"/mic0.wav","/mic2.wav","/reference.wav","/processed.wav","/stimulus.wav"};
+    const char *paths[]={"/mic0.wav","/mic2.wav","/reference.wav","/processed.wav","/stimulus.wav","/pre-agc.wav"};
     for(auto path:paths) {
       httpd_uri_t uri{}; uri.uri=path; uri.method=HTTP_GET; uri.handler=&ChanCapture::serve; uri.user_ctx=this;
       if(httpd_register_uri_handler(server,&uri)!=ESP_OK) {
@@ -52,11 +62,12 @@ class ChanCapture {
     if(guard.test_and_set()) return false;
     if(state==RECORDING || state==DOWNLOADING) { guard.clear(); return false; }
     if(!data) data=static_cast<int16_t *>(heap_caps_malloc(LIMIT*8,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT));
+    if(!pre_agc) pre_agc=static_cast<int16_t *>(heap_caps_malloc(LIMIT*2,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT));
     if(!stimulus) stimulus=static_cast<int16_t *>(heap_caps_malloc(LIMIT*2,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT));
-    if(!data || !stimulus || !start_server()) {
+    if(!data || !stimulus || !pre_agc || !start_server()) {
       ESP_LOGE("chan_capture","Allocation/auth/server failed; test cancelled"); guard.clear(); return false;
     }
-    recording_enabled=enabled; frames=0; missing=0; copy_max_us=0; skipped=0; state=RECORDING;
+    recording_enabled=enabled; pre_missing=0; first_missing=UINT32_MAX; frames=0; missing=0; copy_max_us=0; skipped=0; state=RECORDING;
     guard.clear(); ESP_LOGI("chan_capture","Local 8s test: capture=%s, 16kHz", enabled ? "ON" : "OFF"); return true;
   }
   void append(const int16_t *mic,const int16_t *ref,const int16_t *out,size_t n,int channels,bool valid) {
@@ -64,13 +75,17 @@ class ChanCapture {
     if(guard.test_and_set()) { ++skipped; return; }
     if(state!=RECORDING) { guard.clear(); return; }
     const int64_t start=esp_timer_get_time(); n=std::min(n,LIMIT-frames);
+    if(n==0) { guard.clear(); return; }
+    const bool pre_valid=valid && pre_stage_samples>=n;
     for(size_t i=0;i<n;++i) {
       data[4*(frames+i)]=mic[i*channels];
       data[4*(frames+i)+1]=channels>1?mic[i*channels+1]:0;
       data[4*(frames+i)+2]=ref?ref[i]:0;
       data[4*(frames+i)+3]=out[i];
+      pre_agc[frames+i]=pre_valid?pre_stage[i]:0;
     }
-    if(!valid) ++missing;
+    if(!valid) { ++missing; if(first_missing==UINT32_MAX) first_missing=frames; }
+    if(valid && !pre_valid) ++pre_missing;
     frames+=n;
     copy_max_us=std::max(copy_max_us,static_cast<uint32_t>(esp_timer_get_time()-start));
     // Publish READY only after the test has stopped, not while playback runs.
@@ -86,6 +101,8 @@ class ChanCapture {
     }
     ESP_LOGI("chan_capture","samples=%u missing_blocks=%u copy_max_us=%u skipped=%u stimulus_samples=%u",
       (unsigned)frames,(unsigned)missing,(unsigned)copy_max_us,(unsigned)skipped.load(),(unsigned)stimulus_frames);
+    ESP_LOGI("chan_capture","pre_agc_missing=%u first_missing_sample=%d (-1 means none)",
+      (unsigned)pre_missing, first_missing==UINT32_MAX?-1:int(first_missing));
     guard.clear(); return true;
   }
   bool has_stimulus() const { return stimulus_frames!=0; }
@@ -111,6 +128,7 @@ class ChanCapture {
     else if(!strcmp(req->uri,"/reference.wav")) channel=2;
     else if(!strcmp(req->uri,"/processed.wav")) channel=3;
     else if(!strcmp(req->uri,"/stimulus.wav")) channel=4;
+    else if(!strcmp(req->uri,"/pre-agc.wav")) channel=5;
     size_t samples=channel==4?self->stimulus_frames:self->frames;
     uint8_t header[44]{};
     auto put16=[&](int at,uint16_t v){header[at]=v;header[at+1]=v>>8;};
@@ -123,7 +141,7 @@ class ChanCapture {
     int16_t chunk[512];
     for(size_t pos=0;rc==ESP_OK && pos<samples;pos+=512) {
       size_t n=std::min<size_t>(512,samples-pos);
-      for(size_t i=0;i<n;++i)chunk[i]=channel==4?self->stimulus[pos+i]:self->data[4*(pos+i)+channel];
+      for(size_t i=0;i<n;++i)chunk[i]=channel==4?self->stimulus[pos+i]:(channel==5?self->pre_agc[pos+i]:self->data[4*(pos+i)+channel]);
       rc=httpd_resp_send_chunk(req,reinterpret_cast<char *>(chunk),n*2);
     }
     if(rc==ESP_OK)rc=httpd_resp_send_chunk(req,nullptr,0);

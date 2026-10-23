@@ -1501,6 +1501,7 @@ bool EspAfe::process(const int16_t *in_mic, const int16_t *in_ref, int16_t *out,
       (!gmf_path || this->fetch_output_ring_->available() >= output_bytes)) {
     size_t got = this->fetch_output_ring_->read(reinterpret_cast<uint8_t *>(out), output_bytes, 0);
     if (got == output_bytes) {
+      this->capture.stage_pre_agc(out, static_cast<size_t>(os));
 #ifdef USE_ESP_AFE_POST_AGC
       // GMF output payloads are an arbitrary byte stream in v2026.9.x. Run
       // post-AFE AGC here, only after a complete consumer frame is assembled.
