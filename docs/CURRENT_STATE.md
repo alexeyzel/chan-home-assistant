@@ -1,7 +1,7 @@
 # Current project state
 
-Updated 2026-10-22 after delivering the buffered lab and clarifying test timing.
-No hardware results for that candidate have been received. This file is the
+Updated 2026-10-23 after analyzing log41 and both five-channel WAV sets.
+Playback timing passed; residual clipping and quiet speech level remain unresolved. This file is the
 starting point for another chat; historical “pending”/“next” paragraphs elsewhere
 must not override it.
 
@@ -10,16 +10,16 @@ must not override it.
 Active development is on main after owner-approved branch consolidation. The
 former codex/full-duplex-poc and three older feature branches are retained as
 archive tags; see BRANCH_ARCHIVE.md. No public release was created. Firmware
-and pending hardware-test status are unchanged by the consolidation.
+status was unchanged by consolidation; subsequent log41 findings are below.
 
 ## Immediate next action
 
-Await/analyze owner Lab 1 and Lab 2 results from
-`firmware/stackchan-audio-lab-buffered.example.yaml` (introduced c933d10,
-whitespace cleanup 0e51724). Do not begin another speculative AEC/VAD rewrite or
-send an older YAML. No need to recompile the unchanged firmware for documentation.
+Review [log41 analysis](LAB41_ANALYSIS.md). Proposed next test: preserve buffered
+playback, trial fixed12dB ADC headroom with identical stimulus, separate AFE output
+from post-AGC measurement, then calibrate speech level. This is not implemented.
+Do not return to speculative VAD/delay changes or call duplex solved.
 
-Current candidate is **compile-validated, NOT hardware-validated**. Last full
+Current candidate has **partial hardware validation; headroom fails and echo control remains unproven**. Last full
 build: ESPHome 2026.10.0, ESP-IDF 5.5.6, config hash 0xadeb4280, ESP32-S3 chip ID 9,
 16 MB, valid checksum/hash. Static RAM 172587/341760, image 1855715/8126464 bytes;
 these are not runtime headroom measurements. No new release exists.
@@ -55,7 +55,7 @@ hardware changes; do not move servos until Y-angle mismatch is resolved.
 | --- | --- | --- |
 | Log 39, Lab 1 | Original native16k lab, mic36dB/ref0. Five 8s mono PCM16/16k WAVs. Owner says speech sounds normal. | Quiet recording works for this run; no proof of echo cancellation. |
 | Log 40, Lab 2 | Same lab. Mic0 clipped22.58%, mic2 clipped20.96%. Reference not clipped. Owner hears distorted/slowed microphones; stimulus normal. | Significant pre-AFE saturation plus faulty test feeding. AEC quality cannot be judged cleanly. |
-| Buffered lab | 18dB trial, capacity-driven playback, compiled only | No hardware result yet; do not state that clipping or slowdown is fixed. |
+| Log41, buffered lab | 18dB;7s drains in7.098s, middle underruns0; mic clipping0.77%/0.32%; quiet processed RMS-42.41dBFS | Playback timing passed for this run; headroom and echo/speech level remain unresolved. See LAB41_ANALYSIS.md. |
 
 Log 39: mic0 RMS−26.88/peak−5.84dBFS; mic2 −26.62/−5.05;
 processed −18.14/−1.80; reference RMS−87.11 (silent speaker expected).
@@ -79,7 +79,7 @@ are not steady-state camera/motor headroom measurements or proof CPU is solved.
 
 - Single I2S owner, native RX/TX16k; no input48→16 conversion. Live candidate
   (separate, deferred) retains only Pipecat output24→16 resampling.
-- Fixed mic18dB/ref0; 18dB is a hypothesis, not a proven setting. Earlier 18dB
+- Fixed mic18dB/ref0; log41 shows residual clipping, not a qualified setting. Earlier 18dB
   standalone-AEC tests also failed echo control; gain alone is not the solution.
 - Lab-only speaker ring500ms. Capacity-driven nonblocking writes; advance only
   accepted bytes; 1ms yield is scheduling, not PCM pacing. Wait for drain and

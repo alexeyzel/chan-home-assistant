@@ -79,5 +79,6 @@ Use the current robot IP with port 8088 and exact paths /mic0.wav, /mic2.wav,
 Username diagnostic, password from capture_password. Server starts after a
 successful test begin. Save Lab 1 and Lab 2 as separate sets; reboot clears RAM.
 
-Status: compiled2026.10.0/IDF 5.5.6, owner testing pending. See CURRENT_STATE.md
-for later results rather than treating this build statement as hardware approval.
+Status2026-10-23: log41 timing passed (7.098s/7s), but18dB still clips microphones
+and quiet processed speech is low. See LAB41_ANALYSIS.md and CURRENT_STATE.md.
+No double-talk acceptance or new firmware follows from these results alone.

@@ -17,10 +17,10 @@ an entry-point AGENTS.md; source control is here, not in the parent directory.
 3. Read docs/DEVELOPMENT.md for workspace/toolchain issues and docs/VALIDATION.md
    for detailed evidence. Historical “next test” paragraphs are not current orders.
 
-As of 2026-10-22 the active YAML is firmware/stackchan-audio-lab-buffered.example.yaml.
-It compiled on ESPHome 2026.10.0 but has NO owner hardware result yet. Previous
-native16k/36dB Lab 1 passed quiet capture; Lab 2 clipped microphones and had playback
-starvation. Buffered feeding and 18 dB gain are hypotheses pending the next tests.
+As of 2026-10-23 the active YAML is firmware/stackchan-audio-lab-buffered.example.yaml.
+Log41 hardware results: playback timing passed (7.098s for7s), but residual mic
+clipping and low quiet processed speech remain. See docs/LAB41_ANALYSIS.md.
+Next proposed experiment separates ADC headroom and AFE/AGC; not implemented yet.
 Do not start an older experiment or claim reliable live interruption is solved.
 
 After new evidence or a delivery, update CURRENT_STATE and VALIDATION together;

@@ -642,3 +642,17 @@ Build result for the new uplink test:
   current project documentation while retaining Codex/experimental disclosure
   and withdrawn-release policy. No firmware edits or new hardware claims.
 - Development instructions now target main; archived refs listed in BRANCH_ARCHIVE.
+
+## Buffered lab hardware results (2026-10-23, log41)
+
+See [LAB41_ANALYSIS](LAB41_ANALYSIS.md) for filenames, full metrics and limits.
+All10 WAVs are8s monoPCM16/16k. Lab1 processed RMS-42.41dBFS; stimulus only
+is amplified+18.43dB. Lab2 drains224000bytes in7098ms with zero middle-window
+underruns; stable stimulus/reference lag supports corrected playback speed.
+Mic0/mic2 exact clipping980/410 samples (0.766%/0.320%); residual headroom failure.
+Processed Lab2 peaks-1.13dBFS: blind output gain is unsafe for signal fidelity.
+Missing_blocks1 cannot locate a saved WAV gap because counting can occur after
+capture full. No aligned zero256-sample blocks. CPU window afe_feed77.8%,
+IDLE0 22.3%, IDLE1 76.5%; not steady-state feature headroom proof.
+Documentation-only update, no firmware change/compile/flash/release. Proposed
+next experiment: controlled12dB headroom trial and separate AFE/AGC measurement.

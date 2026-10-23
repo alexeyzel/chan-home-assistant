@@ -12,16 +12,17 @@ with Gemini Live through [Pipecat Assist](https://github.com/kyvaith/pipecat-hom
 Active development is maintained on **main**. This branch is experimental;
 merging development here does not create a release.
 
-## Current state — 2026-10-22
+## Current state — 2026-10-23
 
 **Active candidate:** [buffered native-16k audio lab](firmware/stackchan-audio-lab-buffered.example.yaml).
-It compiled on ESPHome 2026.10.0 / ESP-IDF 5.5.6; **owner hardware results are pending**.
+It compiled on ESPHome 2026.10.0 / ESP-IDF 5.5.6; **log41 hardware tests show partial progress**.
 This lab deliberately omits Pipecat to isolate playback, microphone saturation and AFE.
 
 The preceding native-16k Lab 1 recorded clear speech without clipping. Lab 2
 revealed about 21–23% clipped microphone samples and irregular playback feeding.
-The new candidate uses capacity-driven feeding and a fixed 18 dB ADC gain trial.
-Neither this gain nor reliable full-duplex interruption has been validated yet.
+The buffered candidate plays7s in7.098s without middle-playback underruns. At18dB,
+microphones still clip0.77%/0.32%, and quiet processed speech is low. Echo control
+and reliable interruption remain unproven. See [log41 analysis](docs/LAB41_ANALYSIS.md).
 
 The owner previously demonstrated Pipecat replies and some human interruptions,
 but ordinary-voice interruption, startup reliability and recognition remain

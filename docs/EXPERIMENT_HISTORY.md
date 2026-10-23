@@ -1,6 +1,6 @@
 # Experiment history and retained artifacts
 
-Status as of2026-10-22. These are historical comparisons, not a sequence to repeat.
+Status as of2026-10-23. These are historical comparisons, not a sequence to repeat.
 CURRENT_STATE.md selects the active test. “Compiled” never means device success.
 Raw evidence stays outside Git; detailed analysis is in VALIDATION.md.
 
@@ -37,7 +37,8 @@ unknown. kyvaith/pipecat-homeassistant was the installed Pipecat project.
 | Log 38 | Password missing; no capture/server; connection refused | Set capture_password, inspect error before blaming Stop/network |
 | Log 39 / Lab 1 | Native16k/36dB quiet recording good, no clipping | Owner-tested quiet path, not echo-safe duplex |
 | Log 40 / Lab 2 | Raw mics clip≈21–23%; feeding8s PCM took≈10s with many short frames | Fix lab feed pacing and test ADC headroom; cannot judge AEC cleanly |
-| c933d10 /0e51724 | New buffered lab,18dB hypothesis, normalized stimulus, timing guards | Compiled only; owner tests pending |
+| c933d10 /0e51724 | New buffered lab,18dB hypothesis, normalized stimulus, timing guards | Initially compile-only; subsequent hardware results below |
+| Log41 / Lab1+2 | Buffered timing passed; mic clips0.77%/0.32%; quiet processed RMS-42.41dBFS | Preserve feed fix; separate ADC headroom and AFE/AGC measurement (LAB41_ANALYSIS.md) |
 
 ## Firmware catalog
 
@@ -46,7 +47,7 @@ ESPHome; they are comparisons, not supported alternative current builds.
 
 | File | Status/use |
 | --- | --- |
-| stackchan-audio-lab-buffered.example.yaml | **Active pending hardware test** |
+| stackchan-audio-lab-buffered.example.yaml | **Active; log41 timing pass, residual clipping/low speech unresolved** |
 | stackchan-audio-lab-16k.example.yaml | Preceding36dB lab: quiet pass/playback fail logs39/40; preserve comparison |
 | stackchan-pipecat-16k.example.yaml | Compiled deferred live candidate, still36dB; buffered-lab changes not ported |
 | stackchan-audio-lab-v2.example.yaml | 48k bus/36dB gain-audit candidate, superseded by native16k |

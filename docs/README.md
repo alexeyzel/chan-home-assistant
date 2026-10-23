@@ -8,6 +8,7 @@ paragraph. CURRENT_STATE is the current decision record; VALIDATION is a timelin
 | --- | --- |
 | [CURRENT_STATE](CURRENT_STATE.md) | Active artifact, evidence, constraints, immediate next action |
 | [BUFFERED_AUDIO_LAB](BUFFERED_AUDIO_LAB.md) | Current test design and owner procedure |
+| [LAB41_ANALYSIS](LAB41_ANALYSIS.md) | Latest hardware measurements and proposed next experiment |
 | [EXPERIMENT_HISTORY](EXPERIMENT_HISTORY.md) | What was tried, result and retained firmware |
 | [REFERENCE_INDEX](REFERENCE_INDEX.md) | Source donors, exact pins, lessons and limits |
 | [BRANCH_ARCHIVE](BRANCH_ARCHIVE.md) | Retired branches, exact archive tags and recovery context |
